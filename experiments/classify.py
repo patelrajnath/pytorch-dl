@@ -51,7 +51,7 @@ def go(arg):
         TEXT.build_vocab(train, max_size=arg.vocab_size - 2)  # - 2 to make space for <unk> and <pad>
         LABEL.build_vocab(train)
 
-        train_iter, test_iter = data.BucketIterator.splits((train, test), batch_size=arg.batch_size)
+        train_iter, test_iter = data.BucketIterator.splits((train, test), batch_size=arg.batch_size, device=d())
 
     print(f'- nr. of training examples {len(train_iter)}')
     print(f'- nr. of {"test" if arg.final else "validation"} examples {len(test_iter)}')
