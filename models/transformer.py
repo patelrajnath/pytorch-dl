@@ -41,7 +41,7 @@ class SelfAttention(nn.Module):
 
 
 class TransformerBlock(nn.Module):
-  def __init__(self, k, heads, ff=32, dropout=0.0):
+  def __init__(self, k, heads, ff=4, dropout=0.0):
     super().__init__()
 
     self.attention = SelfAttention(k, heads=heads)
@@ -60,8 +60,8 @@ class TransformerBlock(nn.Module):
     attended = self.attention(x)
     x = self.norm1(attended + x)
     x = self.do(x)
-    fedforward = self.ff(x)
-    x = self.norm2(fedforward + x)
+    ff_out = self.ff(x)
+    x = self.norm2(ff_out + x)
     x = self.do(x)
     return x
 
