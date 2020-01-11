@@ -28,8 +28,8 @@ def d(tensor=None):
     :return:
     """
     if tensor is None:
-        return 'cuda' if torch.cuda.is_available() else 'cpu'
-    return 'cuda' if tensor.is_cuda else 'cpu'
+        return None if torch.cuda.is_available() else -1
+    return None if tensor.is_cuda else -1
 
 
 def go(arg):
