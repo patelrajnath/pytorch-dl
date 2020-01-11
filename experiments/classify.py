@@ -69,7 +69,6 @@ def go(arg):
 
         print(f'\n epoch {e}')
         model.train(True)
-        #
         for batch in tqdm.tqdm(train_iter):
 
             opt.zero_grad()

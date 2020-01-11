@@ -41,7 +41,7 @@ class SelfAttention(nn.Module):
 
 
 class TransformerBlock(nn.Module):
-  def __init__(self, k, heads, ff=32):
+  def __init__(self, k, heads, ff=32, dropout=0.0):
     super().__init__()
 
     self.attention = SelfAttention(k, heads=heads)
@@ -54,17 +54,20 @@ class TransformerBlock(nn.Module):
       nn.ReLU(),
       nn.Linear(ff * k, k))
 
+    self.do = nn.Dropout(dropout)
+
   def forward(self, x):
     attended = self.attention(x)
     x = self.norm1(attended + x)
-
+    x = self.do(x)
     fedforward = self.ff(x)
-    # print(attended.size(), x.size(), fedforward.size())
-    return self.norm2(fedforward + x)
+    x = self.norm2(fedforward + x)
+    x = self.do(x)
+    return x
 
 
 class Transformer(nn.Module):
-    def __init__(self, k, heads, depth, seq_length, num_tokens, num_classes):
+    def __init__(self, k, heads, depth, seq_length, num_tokens, num_classes, dropout=0.0):
         super().__init__()
 
         self.num_tokens = num_tokens
@@ -80,6 +83,8 @@ class Transformer(nn.Module):
 
         # Maps the final output sequence to class logits
         self.toprobs = nn.Linear(k, num_classes)
+
+        self.do = nn.Dropout(dropout)
 
     def forward(self, x):
         """
@@ -97,9 +102,12 @@ class Transformer(nn.Module):
         positions = self.pos_emb(positions)[None, :, :].expand(b, t, k)
 
         x = tokens + positions
+        x = self.do(x)
+
         x = self.tblocks(x)
 
         # Average-pool over the t dimension and project to class
         # probabilities
         x = self.toprobs(x.mean(dim=1))
+
         return F.log_softmax(x, dim=1)
