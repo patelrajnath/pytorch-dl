@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
+from models.utils import models_util
 
 
 class SelfAttention(nn.Module):
@@ -62,28 +63,6 @@ class TransformerBlock(nn.Module):
     return self.norm2(fedforward + x)
 
 
-class TransformerBlock(nn.Module):
-  def __init__(self, k, heads):
-    super().__init__()
-
-    self.attention = SelfAttention(k, heads=heads)
-
-    self.norm1 = nn.LayerNorm(k)
-    self.norm2 = nn.LayerNorm(k)
-
-    self.ff = nn.Sequential(
-      nn.Linear(k, 4 * k),
-      nn.ReLU(),
-      nn.Linear(4 * k, k))
-
-  def forward(self, x):
-    attended = self.attention(x)
-    x = self.norm1(attended + x)
-
-    fedforward = self.ff(x)
-    return self.norm2(fedforward + x)
-
-
 class Transformer(nn.Module):
     def __init__(self, k, heads, depth, seq_length, num_tokens, num_classes):
         super().__init__()
@@ -115,7 +94,7 @@ class Transformer(nn.Module):
 
         # generate position embeddings
         positions = torch.arange(t)
-        positions = self.pos_emb(positions)[None, :, :].expand(b, t, k)
+        positions = self.pos_emb(positions, device=models_util.d())[None, :, :].expand(b, t, k)
 
         x = tokens + positions
         x = self.tblocks(x)

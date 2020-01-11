@@ -13,23 +13,12 @@ import random, tqdm, sys, math, gzip
 
 # Used for converting between nats and bits
 from models.transformer import Transformer
+from models.utils import models_util
 
 LOG2E = math.log2(math.e)
 TEXT = data.Field(lower=True, include_lengths=True, batch_first=True)
 LABEL = data.Field(sequential=False)
 NUM_CLS = 2
-
-
-def d(tensor=None):
-    """
-    Returns a device string either for the best available device,
-    or for the device corresponding to the argument
-    :param tensor:
-    :return:
-    """
-    if tensor is None:
-        return None if torch.cuda.is_available() else -1
-    return None if tensor.is_cuda else -1
 
 
 def go(arg):
@@ -43,7 +32,8 @@ def go(arg):
         TEXT.build_vocab(train, max_size=arg.vocab_size - 2)
         LABEL.build_vocab(train)
 
-        train_iter, test_iter = data.BucketIterator.splits((train, test), batch_size=arg.batch_size, device=d())
+        train_iter, test_iter = data.BucketIterator.splits((train, test), batch_size=arg.batch_size,
+                                                           device=models_util.d())
     else:
         tdata, _ = datasets.IMDB.splits(TEXT, LABEL)
         train, test = tdata.split(split_ratio=0.8)
@@ -51,7 +41,8 @@ def go(arg):
         TEXT.build_vocab(train, max_size=arg.vocab_size - 2)  # - 2 to make space for <unk> and <pad>
         LABEL.build_vocab(train)
 
-        train_iter, test_iter = data.BucketIterator.splits((train, test), batch_size=arg.batch_size, device=d())
+        train_iter, test_iter = data.BucketIterator.splits((train, test), batch_size=arg.batch_size,
+                                                           device=models_util.d())
 
     print(f'- nr. of training examples {len(train_iter)}')
     print(f'- nr. of {"test" if arg.final else "validation"} examples {len(test_iter)}')
