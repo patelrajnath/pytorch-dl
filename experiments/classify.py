@@ -20,6 +20,18 @@ LABEL = data.Field(sequential=False)
 NUM_CLS = 2
 
 
+def d(tensor=None):
+    """
+    Returns a device string either for the best available device,
+    or for the device corresponding to the argument
+    :param tensor:
+    :return:
+    """
+    if tensor is None:
+        return 'cuda' if torch.cuda.is_available() else 'cpu'
+    return 'cuda' if tensor.is_cuda else 'cpu'
+
+
 def go(arg):
     """
     Creates and trains a basic transformer for the IMDB sentiment classification task.
@@ -31,7 +43,7 @@ def go(arg):
         TEXT.build_vocab(train, max_size=arg.vocab_size - 2)
         LABEL.build_vocab(train)
 
-        train_iter, test_iter = data.BucketIterator.splits((train, test), batch_size=arg.batch_size, device='cpu')
+        train_iter, test_iter = data.BucketIterator.splits((train, test), batch_size=arg.batch_size, device=d())
     else:
         tdata, _ = datasets.IMDB.splits(TEXT, LABEL)
         train, test = tdata.split(split_ratio=0.8)
