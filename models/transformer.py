@@ -1,16 +1,16 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
-from models.utils import models_util
+from models.utils.models_util import mask_, d
 
 
 class SelfAttention(nn.Module):
     """
     This is basic transformer model
     """
-    def __init__(self, k, heads):
+    def __init__(self, k, heads, mask=False):
         super().__init__()
-        self.k, self.heads = k, heads
+        self.k, self.heads, self.mask= k, heads, mask
         self.toqueries = nn.Linear(k, k * heads, bias=False)
         self.tovalue = nn.Linear(k, k * heads, bias=False)
         self.tokey = nn.Linear(k, k * heads, bias=False)
@@ -31,6 +31,9 @@ class SelfAttention(nn.Module):
         key = key / (k**(1/4))
 
         dot = torch.bmm(query, key.transpose(1, 2))
+        if self.mask: # mask out the upper half of the dot matrix, excluding the diagonal
+            mask_(dot, maskval=float('-inf'), mask_diagonal=False)
+
         dot = F.softmax(dot, dim=2)
         # print(torch.sum(dot, dim=2))
         out = torch.bmm(dot, value).view(b, h, t, k)
@@ -98,7 +101,7 @@ class Transformer(nn.Module):
         b, t, k = tokens.size()
 
         # generate position embeddings
-        positions = torch.arange(t, device=models_util.d())
+        positions = torch.arange(t, device=d())
         positions = self.pos_emb(positions)[None, :, :].expand(b, t, k)
 
         x = tokens + positions

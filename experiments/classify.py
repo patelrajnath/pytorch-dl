@@ -13,7 +13,7 @@ import random, tqdm, sys, math, gzip
 
 # Used for converting between nats and bits
 from models.transformer import Transformer
-from models.utils import models_util
+from models.utils.models_util import d
 
 LOG2E = math.log2(math.e)
 TEXT = data.Field(lower=True, include_lengths=True, batch_first=True)
@@ -33,7 +33,7 @@ def go(arg):
         LABEL.build_vocab(train)
 
         train_iter, test_iter = data.BucketIterator.splits((train, test), batch_size=arg.batch_size,
-                                                           device=models_util.d())
+                                                           device=d())
     else:
         tdata, _ = datasets.IMDB.splits(TEXT, LABEL)
         train, test = tdata.split(split_ratio=0.8)
@@ -42,7 +42,7 @@ def go(arg):
         LABEL.build_vocab(train)
 
         train_iter, test_iter = data.BucketIterator.splits((train, test), batch_size=arg.batch_size,
-                                                           device=models_util.d())
+                                                           device=d())
 
     print(f'- nr. of training examples {len(train_iter)}')
     print(f'- nr. of {"test" if arg.final else "validation"} examples {len(test_iter)}')
