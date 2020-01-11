@@ -93,8 +93,8 @@ class Transformer(nn.Module):
         b, t, k = tokens.size()
 
         # generate position embeddings
-        positions = torch.arange(t)
-        positions = self.pos_emb(positions, device=models_util.d())[None, :, :].expand(b, t, k)
+        positions = torch.arange(t, device=models_util.d())
+        positions = self.pos_emb(positions)[None, :, :].expand(b, t, k)
 
         x = tokens + positions
         x = self.tblocks(x)
