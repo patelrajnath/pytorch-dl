@@ -52,8 +52,8 @@ def go(arg):
         mx = arg.max_length
 
     # create the model
-    model = Transformer(emb=arg.embedding_size, heads=arg.num_heads, depth=arg.depth, seq_length=mx,
-                                num_tokens=arg.vocab_size, num_classes=NUM_CLS, max_pool=arg.max_pool)
+    model = Transformer(k=arg.embedding_size, heads=arg.num_heads, depth=arg.depth,
+                        seq_length=mx, num_tokens=arg.vocab_size, num_classes=NUM_CLS)
     if torch.cuda.is_available():
         model.cuda()
 
