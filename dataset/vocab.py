@@ -40,6 +40,6 @@ class WordVocab(Vocab):
         super().__init__(counter=counter, max_size=max_size, min_freq=min_freq)
 
 
-with open("experiments/data/bert-example.txt") as f:
+with open("experiments/sample-data/bert-example.txt") as f:
     vocab = WordVocab(f)
     print(vocab.counter)

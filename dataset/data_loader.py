@@ -51,7 +51,7 @@ class BertDataSet(Dataset):
         return self.lines[random.randrange(self.corpus_lines)][1]
 
 
-data_set = BertDataSet("experiments/data/bert-example.txt")
+data_set = BertDataSet("experiments/sample-data/bert-example.txt")
 data_loader = DataLoader(data_set, batch_size=2)
 for batch in data_loader:
     print(batch)
