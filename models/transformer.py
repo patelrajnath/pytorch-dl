@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
-from models.utils.models_util import mask_, d
+from models.utils.model_utils import mask_, d
 
 
 class SelfAttention(nn.Module):
