@@ -10,4 +10,4 @@ class SegmentEmbedding(nn.Module):
         self.seg_emb = nn.Embedding(labels, emb_dim)
 
     def forward(self, x):
-        self.seg_emb(x)
+        return self.seg_emb(x)
