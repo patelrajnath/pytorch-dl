@@ -107,8 +107,3 @@ class WordVocab(Vocab):
     def save_vocab(self, vocab_path):
         with open(vocab_path, "wb") as f:
             pickle.dump(self, f)
-
-
-with open("experiments/sample-data/bert-example.txt") as f:
-    vocab = WordVocab(f)
-    vocab.save_vocab("experiments/sample-data/vocab.pkl")

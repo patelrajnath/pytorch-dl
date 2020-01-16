@@ -91,14 +91,3 @@ class BertDataSet(Dataset):
 
     def get_random_line(self):
         return self.lines[random.randrange(self.corpus_lines)][1]
-
-
-vocab = WordVocab.load_vocab("experiments/sample-data/vocab.pkl")
-data_set = BertDataSet("experiments/sample-data/bert-example.txt", vocab, max_size=512)
-data_loader = DataLoader(data_set, batch_size=4)
-# Setting the tqdm progress bar
-data_iter = tqdm.tqdm(enumerate(data_loader),
-                      desc="Running...",
-                      total=len(data_loader))
-for i, data in data_iter:
-    print(data)
