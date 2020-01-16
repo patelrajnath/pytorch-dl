@@ -29,7 +29,11 @@ criterion = nn.NLLLoss(ignore_index=0)
 optimizer = Adam(lr=0.0001, params=model.parameters())
 lr_schedular = lr_scheduler.LambdaLR(optimizer, lambda i: min(i / (lr_warmup / batch_size), 1.0))
 
-if torch.cuda.device_count() > 1:
+cuda_condition = torch.cuda.is_available()
+if cuda_condition:
+    model.cuda()
+
+if cuda_condition and torch.cuda.device_count() > 1:
     print("Using %d GPUS for BERT" % torch.cuda.device_count())
     model = nn.DataParallel(model, device_ids=[0,1,2,3])
 
