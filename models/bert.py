@@ -7,7 +7,7 @@ from models.transformer import TransformerBlock
 class Bert(nn.Module):
     """
     """
-    def __init__(self, vocab_size, width=512, depth=12 ,heads=8):
+    def __init__(self, vocab_size, width=128, depth=4 ,heads=8):
         super().__init__()
         self.h = width
         self.d = depth
