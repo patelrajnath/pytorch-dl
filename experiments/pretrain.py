@@ -1,3 +1,4 @@
+import torch
 import tqdm
 from torch import nn
 from torch.optim import Adam, lr_scheduler
@@ -27,6 +28,11 @@ model = BertLanguageModel(bert, vocab_size)
 criterion = nn.NLLLoss(ignore_index=0)
 optimizer = Adam(lr=0.0001, params=model.parameters())
 lr_schedular = lr_scheduler.LambdaLR(optimizer, lambda i: min(i / (lr_warmup / batch_size), 1.0))
+
+if torch.cuda.device_count() > 1:
+    print("Using %d GPUS for BERT" % torch.cuda.device_count())
+    model = nn.DataParallel(model, device_ids=[0,1,2,3])
+
 
 for _ in range(10):
     avg_loss = 0
