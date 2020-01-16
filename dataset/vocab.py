@@ -4,29 +4,57 @@
 pytorch-dl
 Created by raj at 3:53 PM,  1/15/20
 """
+import pickle
 from collections import Counter
 
 
 class TorchVocab(object):
-    def __init__(self, counter, max_size, min_freq):
-        self.counter = counter
-        self.min_freq = min_freq
-        self.max_len = max_size
+    def __init__(self, counter, specials=None, max_size=None, min_freq=1):
+        self.freqs = counter
+        self.counter = counter.copy()
+        self.min_freq = max(min_freq, 1)
+        self.max_size = max_size
+        self.itos = list(specials)
+
+        for tok in self.itos:
+            del counter[tok]
+        max_size = None if max_size is None else max_size + len(self.itos)
+
+        # sort by frequency, then alphabetically
+        words_and_frequencies = sorted(counter.items(), key=lambda tup: tup[0])
+        words_and_frequencies.sort(key=lambda tup: tup[1], reverse=True)
+
+        for word, freq in words_and_frequencies:
+            if freq < min_freq or len(self.itos) == max_size:
+                break
+            self.itos.append(word)
+
+        # stoi is simply a reverse dict for itos
+        self.stoi = {tok: i for i, tok in enumerate(self.itos)}
+
+        def __len__(self):
+            return len(self.itos)
 
 
 class Vocab(TorchVocab):
-    def __index__(self, counter, max_size, min_freq):
-        super().__init__(counter, max_size, min_freq)
+    def __init__(self, counter, max_size, min_freq):
+        super().__init__(counter, specials=['<pad>', '<oov>', '<eos>', '<sos>', '<mask>'],
+                         max_size=max_size, min_freq=min_freq)
+        self.pad_index = 0
+        self.unk_index = 1
+        self.eos_index = 2
+        self.sos_index = 3
+        self.mask_index = 4
 
-    def to_seq(self):
+    def to_seq(self, sentence, max_len=None, with_eos=False, with_sos=False, with_len=False):
         pass
 
-    def from_seq(self):
+    def from_seq(self, sentence, join=False, with_pad=False):
         pass
 
 
 class WordVocab(Vocab):
-    def __init__(self, texts, max_size=None, min_freq=None):
+    def __init__(self, texts, max_size=None, min_freq=1):
         counter = Counter()
         for text in texts:
             if isinstance(text, list):
@@ -39,7 +67,48 @@ class WordVocab(Vocab):
 
         super().__init__(counter=counter, max_size=max_size, min_freq=min_freq)
 
+    def to_seq(self, sentence, max_len=None, with_eos=False, with_sos=False, with_len=False):
+        if isinstance(sentence, list):
+            words = sentence
+        else:
+            words = sentence.split()
+        seq = [self.stoi.get(word, self.unk_index) for word in words]
+
+        if with_eos:
+            seq += [self.eos_index]  # this would be index 1
+        if with_sos:
+            seq = [self.sos_index] + seq
+
+        origin_seq_len = len(seq)
+
+        if max_len is None:
+            pass
+        elif len(seq) <= max_len:
+            seq += [self.pad_index for _ in range(max_len - len(seq))]
+        else:
+            seq = seq[:max_len]
+
+        return (seq, origin_seq_len) if with_len else seq
+
+    def from_seq(self, seq, join=False, with_pad=False):
+        words = [self.itos[idx]
+                 if idx < len(self.itos)
+                 else "<%d>" % idx
+                 for idx in seq
+                 if not with_pad or idx != self.pad_index]
+
+        return " ".join(words) if join else words
+
+    @staticmethod
+    def load_vocab(vocab_path: str) -> 'Vocab':
+        with open(vocab_path, "rb") as f:
+            return pickle.load(f)
+
+    def save_vocab(self, vocab_path):
+        with open(vocab_path, "wb") as f:
+            pickle.dump(self, f)
+
 
 with open("experiments/sample-data/bert-example.txt") as f:
     vocab = WordVocab(f)
-    print(vocab.counter)
+    vocab.save_vocab("experiments/sample-data/vocab.pkl")
