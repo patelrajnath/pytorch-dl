@@ -5,20 +5,7 @@ pytorch-dl
 Created by raj at 11:05
 Date: January 18, 2020
 """
-
-
-import torch
-import numpy as np
-
-from models.transformer import SelfAttention, TransformerBlock, TransformerEncoder, TransformerEncoderDecoder
-
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-"""
-pytorch-dl
-Created by raj at 11:05 
-Date: January 18, 2020	
-"""
+from models.transformer import TransformerEncoderDecoder
 
 import torch
 import tqdm
@@ -28,8 +15,6 @@ from torch.utils.data import DataLoader
 
 from dataset.data_loader import BertDataSet
 from dataset.vocab import WordVocab
-from models.bert import Bert
-from models.bert_lm import BertLanguageModel
 
 with open("experiments/sample-data/bert-example.txt") as f:
     vocab = WordVocab(f)
@@ -62,7 +47,6 @@ if cuda_condition:
 if cuda_condition and torch.cuda.device_count() > 1:
     print("Using %d GPUS for BERT" % torch.cuda.device_count())
     model = nn.DataParallel(model, device_ids=[0,1,2,3])
-
 
 for epoch in range(100):
     avg_loss = 0
