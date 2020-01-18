@@ -41,12 +41,13 @@ lr_warmup = 1000
 batch_size = 16
 k=512
 h=8
+depth=8
 max_size=80
 data_set = BertDataSet("experiments/sample-data/bert-example.txt", vocab, max_size)
 
 data_loader = DataLoader(data_set, batch_size=batch_size)
 vocab_size = len(vocab.stoi)
-model = TransformerEncoderDecoder(k, h, depth=2, num_emb=vocab_size, num_emb_target=vocab_size, max_len=max_size)
+model = TransformerEncoderDecoder(k, h, depth=depth, num_emb=vocab_size, num_emb_target=vocab_size, max_len=max_size)
 
 criterion = nn.NLLLoss(ignore_index=0)
 optimizer = Adam(lr=0.0001, params=model.parameters())
