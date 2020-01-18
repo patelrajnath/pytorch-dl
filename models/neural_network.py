@@ -12,23 +12,28 @@ class Network(object):
     def __init__(self, x, y):
         self.input = x
         self.w1 = np.random.rand(self.input.shape[1], 4)
-        self.w2 = np.random.rand(4, 1)
+        self.w2 = np.random.rand(4, 4)
+        self.w3 = np.random.rand(4, 1)
         self.y = y
         self.output = np.zeros(self.y.shape)
 
     def feed_forward(self):
         self.y1 = sigmoid(np.dot(self.input, self.w1))
         self.y2 = sigmoid(np.dot(self.y1, self.w2))
-        return self.y2
+        self.y3 = sigmoid(np.dot(self.y2, self.w3))
+        return self.y3
 
     def backward(self):
-        error_l2 = 2 * (self.y - self.output) * sigmoid(self.output, derivative=True)
+        error_l3 = 2 * (self.y - self.output) * sigmoid(self.output, derivative=True)
+        delta3 = np.dot(self.y2.T, error_l3)
+        error_l2 = np.dot(error_l3, self.w3.T)*sigmoid(self.y2, derivative=True)
         delta2 = np.dot(self.y1.T, error_l2)
-        error_l1 = np.dot(error_l2, self.w2.T)*sigmoid(self.y1, derivative=True)
+        error_l1 = np.dot(error_l2, self.w2.T) * sigmoid(self.y1, derivative=True)
         delta1 = np.dot(self.input.T, error_l1)
 
         self.w1 += delta1
         self.w2 += delta2
+        self.w3 += delta3
 
     def train(self):
         self.output = self.feed_forward()
