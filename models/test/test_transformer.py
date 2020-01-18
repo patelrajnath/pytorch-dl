@@ -38,13 +38,13 @@ with open("experiments/sample-data/bert-example.txt") as f:
 vocab = WordVocab.load_vocab("experiments/sample-data/vocab.pkl")
 
 lr_warmup = 1000
-batch_size = 4
+batch_size = 8
 k=128
 h=8
 max_size=80
 data_set = BertDataSet("experiments/sample-data/bert-example.txt", vocab, max_size)
 
-data_loader = DataLoader(data_set, batch_size=4)
+data_loader = DataLoader(data_set, batch_size=batch_size)
 vocab_size = len(vocab.stoi)
 model = TransformerEncoderDecoder(k, h, depth=2, num_emb=vocab_size, num_emb_target=vocab_size, max_len=max_size)
 
