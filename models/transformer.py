@@ -9,6 +9,8 @@ Date: January 18, 2020
 import torch
 from torch import nn
 import torch.nn.functional as F
+
+from models.embeddings.bert_embeddings import BertEmbeddings
 from models.utils.model_utils import mask_, d
 
 
@@ -177,17 +179,18 @@ class Transformer(nn.Module):
 class TransformerEncoder(nn.Module):
     def __init__(self, k, heads, depth, num_emb, max_len):
         super().__init__()
-        self.token_emb = nn.Embedding(num_emb, k)
         self.max_len = max_len
+        self.bert_embeddings = BertEmbeddings(num_emb, k)
+
 
         tblocks = []
         for _ in range(depth):
             tblocks.append(TransformerBlock(k, heads))
         self.tblocks = nn.Sequential(*tblocks)
 
-    def forward(self, x):
-        token_emb = self.token_emb(x)
-        encoding = self.tblocks(token_emb)
+    def forward(self, x, segment_label):
+        bert_emb = self.bert_embeddings(x, segment_label)
+        encoding = self.tblocks(bert_emb)
         return encoding
 
 
@@ -220,8 +223,8 @@ class TransformerEncoderDecoder(nn.Module):
         self.ff_next_sentence = nn.Linear(k, c)
         self.softmax_next_sentence = nn.LogSoftmax(dim=-1)
 
-    def forward(self, x):
-        enc = self.encoder(x)
+    def forward(self, x, segment_label):
+        enc = self.encoder(x, segment_label)
         enc_dec = self.decoder(x, enc)
         ff_out = self.ff(enc_dec)
         ff_next_sentence_out = self.ff_next_sentence(enc_dec)
