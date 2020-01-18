@@ -11,6 +11,7 @@ from torch import nn
 import torch.nn.functional as F
 
 from models.embeddings.bert_embeddings import BertEmbeddings
+from models.embeddings.position_emb import PositionEmbedding
 from models.utils.model_utils import mask_, d
 
 
@@ -197,20 +198,20 @@ class TransformerEncoder(nn.Module):
 class TransformerDecoder(nn.Module):
     def __init__(self, k, heads, depth, num_emb_target, max_len):
         super().__init__()
-        self.token_emb_target = nn.Embedding(num_emb_target, k)
+        self.bert_emb = BertEmbeddings(num_emb_target, k)
         self.max_len = max_len
 
         self.tblocks_decoder = nn.ModuleList()
         for _ in range(depth):
             self.tblocks_decoder.append(TransformerBlockDecoder(k, heads))
 
-    def forward(self, x, enc):
-        tokens_target = self.token_emb_target(x)
-        inner_state = [tokens_target]
+    def forward(self, x, segment_label, enc):
+        bert_emb = self.bert_emb(x, segment_label)
+        inner_state = [bert_emb]
         for i, layer in enumerate(self.tblocks_decoder):
-            tokens_target = layer(tokens_target, enc)
+            bert_emb = layer(bert_emb, enc)
             inner_state.append(x)
-        return tokens_target
+        return bert_emb
 
 
 class TransformerEncoderDecoder(nn.Module):
@@ -225,7 +226,7 @@ class TransformerEncoderDecoder(nn.Module):
 
     def forward(self, x, segment_label):
         enc = self.encoder(x, segment_label)
-        enc_dec = self.decoder(x, enc)
+        enc_dec = self.decoder(x, segment_label, enc)
         ff_out = self.ff(enc_dec)
         ff_next_sentence_out = self.ff_next_sentence(enc_dec)
         return self.softmax(ff_out), self.softmax_next_sentence(ff_next_sentence_out[:, 0])
