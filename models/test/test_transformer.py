@@ -73,7 +73,7 @@ for epoch in range(100):
     for i, data in data_iter:
         data = {key: value.to(device) for key, value in data.items()}
         bert_input, bert_label, segment_label, is_next = data
-        mask_out, sentence_pred = model(data[bert_input])
+        mask_out, sentence_pred = model(data[bert_input], data[segment_label])
 
         mask_loss = criterion(mask_out.transpose(1, 2), data[bert_label])
         next_loss = criterion(sentence_pred, data[is_next])
