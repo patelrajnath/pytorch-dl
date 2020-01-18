@@ -37,7 +37,7 @@ with open("experiments/sample-data/bert-example.txt") as f:
 
 vocab = WordVocab.load_vocab("experiments/sample-data/vocab.pkl")
 
-lr_warmup = 300
+lr_warmup = 500
 batch_size = 16
 k=512
 h=4
