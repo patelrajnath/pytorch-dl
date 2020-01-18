@@ -39,9 +39,9 @@ vocab = WordVocab.load_vocab("experiments/sample-data/vocab.pkl")
 
 lr_warmup = 100
 batch_size = 16
-k=512
+k=128
 h=8
-depth=2
+depth=4
 max_size=80
 data_set = BertDataSet("experiments/sample-data/bert-example.txt", vocab, max_size)
 
