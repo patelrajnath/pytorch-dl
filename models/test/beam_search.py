@@ -1,3 +1,11 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+pytorch-dl
+Created by raj at 11:05
+Date: January 18, 2020
+"""
+
 from math import log
 from numpy import array
 from numpy import argmax
