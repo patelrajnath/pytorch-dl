@@ -36,22 +36,17 @@ with open("experiments/sample-data/bert-example.txt") as f:
     vocab.save_vocab("experiments/sample-data/vocab.pkl")
 
 vocab = WordVocab.load_vocab("experiments/sample-data/vocab.pkl")
-data_set = BertDataSet("experiments/sample-data/bert-example.txt", vocab, max_size=512)
 
 lr_warmup = 1000
 batch_size = 4
+k=128
+h=8
+max_size=80
+data_set = BertDataSet("experiments/sample-data/bert-example.txt", vocab, max_size)
 
 data_loader = DataLoader(data_set, batch_size=4)
-
 vocab_size = len(vocab.stoi)
-k=32
-h=8
-w=20
-b=16
-
-x = np.random.rand(b, w, k)
-
-model = TransformerEncoderDecoder(k, h, depth=2, num_emb=vocab_size, num_emb_target=vocab_size, max_len=80)
+model = TransformerEncoderDecoder(k, h, depth=2, num_emb=vocab_size, num_emb_target=vocab_size, max_len=max_size)
 
 criterion = nn.NLLLoss(ignore_index=0)
 optimizer = Adam(lr=0.0001, params=model.parameters())
