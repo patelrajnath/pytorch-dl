@@ -16,65 +16,115 @@ class SelfAttention(nn.Module):
     """
     This is basic transformer model
     """
+
     def __init__(self, k, heads, mask=False):
         super().__init__()
-        self.k, self.heads, self.mask= k, heads, mask
+        self.k, self.heads, self.mask = k, heads, mask
         self.toqueries = nn.Linear(k, k * heads, bias=False)
         self.tovalue = nn.Linear(k, k * heads, bias=False)
         self.tokey = nn.Linear(k, k * heads, bias=False)
-        self.unifyheads = nn.Linear(k*heads, k, bias=False)
+        self.unifyheads = nn.Linear(k * heads, k, bias=False)
 
-    def forward(self, x):
+    def forward(self, x, enc=None):
         b, t, k = x.size()
+
+        if type(enc) != type(None):
+            enc = enc
+        else:
+            enc = x
+
         h = self.heads
         query = self.toqueries(x).view(b, t, h, k)
-        key = self.tokey(x).view(b, t, h, k)
-        value = self.tovalue(x).view(b, t, h, k)
+        key = self.tokey(enc).view(b, t, h, k)
+        value = self.tovalue(enc).view(b, t, h, k)
 
-        query = query.transpose(1, 2).contiguous().view(b*h, t, k)
-        key = key.transpose(1, 2).contiguous().view(b*h, t, k)
-        value = value.transpose(1, 2).contiguous().view(b*h, t, k)
+        query = query.transpose(1, 2).contiguous().view(b * h, t, k)
+        key = key.transpose(1, 2).contiguous().view(b * h, t, k)
+        value = value.transpose(1, 2).contiguous().view(b * h, t, k)
 
-        query = query / (k**(1/4))
-        key = key / (k**(1/4))
+        query = query / (k ** (1 / 4))
+        key = key / (k ** (1 / 4))
 
         dot = torch.bmm(query, key.transpose(1, 2))
-        if self.mask: # mask out the upper half of the dot matrix, excluding the diagonal
+        if self.mask:  # mask out the upper half of the dot matrix, excluding the diagonal
             mask_(dot, maskval=float('-inf'), mask_diagonal=False)
 
         dot = F.softmax(dot, dim=2)
         # print(torch.sum(dot, dim=2))
         out = torch.bmm(dot, value).view(b, h, t, k)
-        out = out.transpose(1, 2).contiguous().view(b, t, h*k)
+        out = out.transpose(1, 2).contiguous().view(b, t, h * k)
         return self.unifyheads(out)
         # print('key:', key.size(), 'value:', value.size(), 'query:', query.size(),
         #       'dot', dot.size(), "out", out.size())
 
 
 class TransformerBlock(nn.Module):
-  def __init__(self, k, heads, ff=4, dropout=0.0):
-    super().__init__()
+    def __init__(self, k, heads, ff=4, dropout=0.0):
+        super().__init__()
 
-    self.attention = SelfAttention(k, heads=heads)
+        self.attention = SelfAttention(k, heads=heads)
 
-    self.norm1 = nn.LayerNorm(k)
-    self.norm2 = nn.LayerNorm(k)
+        self.norm1 = nn.LayerNorm(k)
+        self.norm2 = nn.LayerNorm(k)
 
-    self.ff = nn.Sequential(
-      nn.Linear(k, ff * k),
-      nn.ReLU(),
-      nn.Linear(ff * k, k))
+        self.ff = nn.Sequential(
+            nn.Linear(k, ff * k),
+            nn.ReLU(),
+            nn.Linear(ff * k, k))
 
-    self.do = nn.Dropout(dropout)
+        self.do = nn.Dropout(dropout)
 
-  def forward(self, x):
-    attended = self.attention(x)
-    x = self.norm1(attended + x)
-    x = self.do(x)
-    ff_out = self.ff(x)
-    x = self.norm2(ff_out + x)
-    x = self.do(x)
-    return x
+    def forward(self, x):
+        attended = self.attention(x)
+        x = self.norm1(attended + x)
+        x = self.do(x)
+        ff_out = self.ff(x)
+        x = self.norm2(ff_out + x)
+        x = self.do(x)
+        return x
+
+
+class TransformerBlockDecoder(nn.Module):
+    def __init__(self, k, heads, ff=4, dropout=0.0):
+        super().__init__()
+
+        # Masked self attention
+        self.attention = SelfAttention(k, heads=heads)
+
+        # Encoder-decoder self attention
+        self.attention_encoder_decoder = SelfAttention(k, heads=heads)
+
+        self.norm1 = nn.LayerNorm(k)
+        self.norm2 = nn.LayerNorm(k)
+        self.norm3 = nn.LayerNorm(k)
+
+        self.ff = nn.Sequential(
+            nn.Linear(k, ff * k),
+            nn.ReLU(),
+            nn.Linear(ff * k, k))
+
+        self.linear = nn.Linear(k, k)
+
+        self.do = nn.Dropout(dropout)
+
+    def forward(self, x, enc):
+        masked_attention = self.attention(x)
+        # Add and layer normalize
+        x = self.norm1(masked_attention + x)
+
+        encdec_attention = self.attention_encoder_decoder(x, enc)
+
+        # Add and layer normalize
+        x = self.norm2(encdec_attention + x)
+        x = self.do(x)
+
+        # Run feed-forward
+        ff_out = self.ff(x)
+
+        # Add and layer normalize
+        x = self.norm3(ff_out + x)
+        x = self.do(x)
+        return x
 
 
 class Transformer(nn.Module):
@@ -122,3 +172,51 @@ class Transformer(nn.Module):
         x = self.toprobs(x.mean(dim=1))
 
         return F.log_softmax(x, dim=1)
+
+
+class TransformerEncoder(nn.Module):
+    def __init__(self, k, heads, depth, num_emb, max_len):
+        super().__init__()
+        self.token_emb = nn.Embedding(num_emb, k)
+        self.max_len = max_len
+
+        tblocks = []
+        for _ in range(depth):
+            tblocks.append(TransformerBlock(k, heads))
+        self.tblocks = nn.Sequential(*tblocks)
+
+    def forward(self, x):
+        token_emb = self.token_emb(x)
+        encoding = self.tblocks(token_emb)
+        return encoding
+
+
+class TransformerDecoder(nn.Module):
+    def __init__(self, k, heads, depth, num_emb_target, max_len):
+        super().__init__()
+        self.token_emb_target = nn.Embedding(num_emb_target, k)
+        self.max_len = max_len
+
+        self.tblocks_decoder = nn.ModuleList()
+        for _ in range(depth):
+            self.tblocks_decoder.append(TransformerBlockDecoder(k, heads))
+
+    def forward(self, x, enc):
+        tokens_target = self.token_emb_target(x)
+        inner_state = [tokens_target]
+        for i, layer in enumerate(self.tblocks_decoder):
+            tokens_target = layer(tokens_target, enc)
+            inner_state.append(x)
+        return tokens_target
+
+
+class TransformerEncoderDecoder(nn.Module):
+    def __init__(self, k, heads, depth, num_emb, num_emb_target, max_len):
+        super().__init__()
+        self.encoder = TransformerEncoder(k, heads, depth, num_emb, max_len)
+        self.decoder = TransformerDecoder(k, heads, depth, num_emb_target, max_len)
+
+    def forward(self, x):
+        enc = self.encoder(x)
+        enc_dec = self.decoder(x, enc)
+        print(enc_dec)
