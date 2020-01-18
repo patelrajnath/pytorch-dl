@@ -215,8 +215,11 @@ class TransformerEncoderDecoder(nn.Module):
         super().__init__()
         self.encoder = TransformerEncoder(k, heads, depth, num_emb, max_len)
         self.decoder = TransformerDecoder(k, heads, depth, num_emb_target, max_len)
+        self.ff = nn.Linear(k, num_emb_target)
+        self.softmax = nn.LogSoftmax(dim=-1)
 
     def forward(self, x):
         enc = self.encoder(x)
         enc_dec = self.decoder(x, enc)
-        print(enc_dec)
+        ff_out = self.ff(enc_dec)
+        return self.softmax(ff_out)
