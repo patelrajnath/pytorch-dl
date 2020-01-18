@@ -47,11 +47,11 @@ if cuda_condition and torch.cuda.device_count() > 1:
     print("Using %d GPUS for BERT" % torch.cuda.device_count())
     model = nn.DataParallel(model, device_ids=[0,1,2,3])
 
-for _ in range(10):
+for epoch in range(100):
     avg_loss = 0
     # Setting the tqdm progress bar
     data_iter = tqdm.tqdm(enumerate(data_loader),
-                          desc="Running...",
+                          desc="Running epoch: {}".format(epoch),
                           total=len(data_loader))
     for i, data in data_iter:
         data = {key: value.to(device) for key, value in data.items()}
