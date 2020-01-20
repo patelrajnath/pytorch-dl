@@ -11,7 +11,6 @@ from torch import nn
 import torch.nn.functional as F
 
 from models.embeddings.bert_embeddings import BertEmbeddings
-from models.embeddings.position_emb import PositionEmbedding
 from models.utils.model_utils import mask_, d
 
 
