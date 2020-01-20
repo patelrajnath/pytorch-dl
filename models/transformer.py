@@ -20,9 +20,9 @@ class SelfAttention(nn.Module):
     This is basic transformer model
     """
 
-    def __init__(self, k, heads, mask=False):
+    def __init__(self, k, heads, mask_future_steps=False):
         super().__init__()
-        self.k, self.heads, self.mask = k, heads, mask
+        self.k, self.heads, self.mask_future_steps = k, heads, mask_future_steps
         self.toqueries = nn.Linear(k, k * heads, bias=False)
         self.tovalue = nn.Linear(k, k * heads, bias=False)
         self.tokey = nn.Linear(k, k * heads, bias=False)
@@ -49,7 +49,7 @@ class SelfAttention(nn.Module):
         key = key / (k ** (1 / 4))
 
         dot = torch.bmm(query, key.transpose(1, 2))
-        if self.mask:  # mask out the upper half of the dot matrix, excluding the diagonal
+        if self.mask_future_steps:  # mask out the upper half of the dot matrix, excluding the diagonal
             mask_(dot, maskval=float('-inf'), mask_diagonal=False)
 
         dot = F.softmax(dot, dim=2)
@@ -88,11 +88,11 @@ class TransformerBlock(nn.Module):
 
 
 class TransformerBlockDecoder(nn.Module):
-    def __init__(self, k, heads, ff=4, dropout=0.0):
+    def __init__(self, k, heads, ff=4, dropout=0.0, mask_future_steps=False):
         super().__init__()
 
         # Masked self attention
-        self.attention = SelfAttention(k, heads=heads)
+        self.attention = SelfAttention(k, heads=heads, mask_future_steps=mask_future_steps)
 
         # Encoder-decoder self attention
         self.attention_encoder_decoder = SelfAttention(k, heads=heads)
@@ -196,29 +196,29 @@ class TransformerEncoder(nn.Module):
 
 
 class TransformerDecoder(nn.Module):
-    def __init__(self, k, heads, depth, num_emb_target, max_len):
+    def __init__(self, k, heads, depth, num_emb_target, max_len, mask_future_steps=False):
         super().__init__()
         self.bert_emb = BertEmbeddings(num_emb_target, k)
         self.max_len = max_len
 
         self.tblocks_decoder = nn.ModuleList()
         for _ in range(depth):
-            self.tblocks_decoder.append(TransformerBlockDecoder(k, heads))
+            self.tblocks_decoder.append(TransformerBlockDecoder(k, heads, mask_future_steps))
 
     def forward(self, x, segment_label, enc):
         bert_emb = self.bert_emb(x, segment_label)
         inner_state = [bert_emb]
         for i, layer in enumerate(self.tblocks_decoder):
-            bert_emb = layer(bert_emb, enc)
+            bert_emb = layer(bert_emb, enc, mask_future_steps=True)
             inner_state.append(x)
         return bert_emb
 
 
 class TransformerEncoderDecoder(nn.Module):
-    def __init__(self, k, heads, depth, num_emb, num_emb_target, max_len, c=3):
+    def __init__(self, k, heads, depth, num_emb, num_emb_target, max_len, c=3, mask_future_steps=True):
         super().__init__()
         self.encoder = TransformerEncoder(k, heads, depth, num_emb, max_len)
-        self.decoder = TransformerDecoder(k, heads, depth, num_emb_target, max_len)
+        self.decoder = TransformerDecoder(k, heads, depth, num_emb_target, max_len, mask_future_steps)
         self.ff = nn.Linear(k, num_emb_target)
         self.softmax = nn.LogSoftmax(dim=-1)
         self.ff_next_sentence = nn.Linear(k, c)
