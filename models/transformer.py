@@ -208,7 +208,7 @@ class TransformerDecoder(nn.Module):
         bert_emb = self.bert_emb(x, segment_label)
         inner_state = [bert_emb]
         for i, layer in enumerate(self.tblocks_decoder):
-            bert_emb = layer(bert_emb, enc, mask_future_steps=True)
+            bert_emb = layer(bert_emb, enc)
             inner_state.append(x)
         return bert_emb
 
