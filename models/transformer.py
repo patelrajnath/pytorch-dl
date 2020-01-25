@@ -11,6 +11,7 @@ from torch import nn
 import torch.nn.functional as F
 
 from models.embeddings.bert_embeddings import BertEmbeddings
+from models.embeddings.mbert_embeddings import MBertEmbeddings
 from models.utils.model_utils import mask_, d
 
 
@@ -180,16 +181,15 @@ class TransformerEncoder(nn.Module):
     def __init__(self, k, heads, depth, num_emb, max_len):
         super().__init__()
         self.max_len = max_len
-        self.bert_embeddings = BertEmbeddings(num_emb, k)
-
+        self.mbert_embeddings = MBertEmbeddings(num_emb, k)
 
         tblocks = []
         for _ in range(depth):
             tblocks.append(TransformerBlock(k, heads))
         self.tblocks = nn.Sequential(*tblocks)
 
-    def forward(self, x, segment_label):
-        bert_emb = self.bert_embeddings(x, segment_label)
+    def forward(self, x):
+        bert_emb = self.mbert_embeddings(x)
         encoding = self.tblocks(bert_emb)
         return encoding
 
@@ -197,15 +197,15 @@ class TransformerEncoder(nn.Module):
 class TransformerDecoder(nn.Module):
     def __init__(self, k, heads, depth, num_emb_target, max_len, mask_future_steps=False):
         super().__init__()
-        self.bert_emb = BertEmbeddings(num_emb_target, k)
+        self.bert_emb = MBertEmbeddings(num_emb_target, k)
         self.max_len = max_len
 
         self.tblocks_decoder = nn.ModuleList()
         for _ in range(depth):
             self.tblocks_decoder.append(TransformerBlockDecoder(k, heads, mask_future_steps))
 
-    def forward(self, x, segment_label, enc):
-        bert_emb = self.bert_emb(x, segment_label)
+    def forward(self, x, enc):
+        bert_emb = self.bert_emb(x)
         inner_state = [bert_emb]
         for i, layer in enumerate(self.tblocks_decoder):
             bert_emb = layer(bert_emb, enc)
@@ -214,18 +214,16 @@ class TransformerDecoder(nn.Module):
 
 
 class TransformerEncoderDecoder(nn.Module):
-    def __init__(self, k, heads, depth, num_emb, num_emb_target, max_len, c=3, mask_future_steps=True):
+    def __init__(self, k, heads, depth, num_emb, num_emb_target, max_len, mask_future_steps=True):
         super().__init__()
         self.encoder = TransformerEncoder(k, heads, depth, num_emb, max_len)
         self.decoder = TransformerDecoder(k, heads, depth, num_emb_target, max_len, mask_future_steps)
         self.ff = nn.Linear(k, num_emb_target)
         self.softmax = nn.LogSoftmax(dim=-1)
-        self.ff_next_sentence = nn.Linear(k, c)
-        self.softmax_next_sentence = nn.LogSoftmax(dim=-1)
 
-    def forward(self, x, segment_label):
-        enc = self.encoder(x, segment_label)
-        enc_dec = self.decoder(x, segment_label, enc)
+    def forward(self, x):
+        enc = self.encoder(x)
+        print(enc.size())
+        enc_dec = self.decoder(x, enc)
         ff_out = self.ff(enc_dec)
-        ff_next_sentence_out = self.ff_next_sentence(enc_dec)
-        return self.softmax(ff_out), self.softmax_next_sentence(ff_next_sentence_out[:, 0])
+        return self.softmax(ff_out)
