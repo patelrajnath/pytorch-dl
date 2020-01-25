@@ -223,7 +223,6 @@ class TransformerEncoderDecoder(nn.Module):
 
     def forward(self, x):
         enc = self.encoder(x)
-        print(enc.size())
         enc_dec = self.decoder(x, enc)
         ff_out = self.ff(enc_dec)
         return self.softmax(ff_out)

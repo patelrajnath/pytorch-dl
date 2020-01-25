@@ -58,8 +58,6 @@ for epoch in range(100):
         data = {key: value.to(device) for key, value in data.items()}
         bert_input, bert_label = data
         mask_out = model(data[bert_input])
-        print(data[bert_input].size(), data[bert_label].size())
-        print(mask_out.size())
         loss = criterion(mask_out.transpose(1, 2), data[bert_label])
         optimizer.zero_grad()
         loss.backward()
