@@ -23,9 +23,9 @@ from models.bert_lm import BertLanguageModel
 def go(arg):
     with open(arg.path) as f:
         vocab = WordVocab(f)
-        vocab.save_vocab("experiments/sample-data/vocab.pkl")
+        vocab.save_vocab("sample-data/vocab.pkl")
 
-    vocab = WordVocab.load_vocab("experiments/sample-data/vocab.pkl")
+    vocab = WordVocab.load_vocab("sample-data/vocab.pkl")
     data_set = BertDataSet(arg.path, vocab, arg.max_length)
 
     lr_warmup = arg.lr_warmup

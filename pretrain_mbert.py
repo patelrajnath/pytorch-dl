@@ -24,9 +24,9 @@ def go(arg):
     input_file = arg.path
     with open(input_file) as f:
         vocab = WordVocab(f)
-        vocab.save_vocab("experiments/sample-data/vocab.pkl")
+        vocab.save_vocab("sample-data/vocab.pkl")
 
-    vocab = WordVocab.load_vocab("experiments/sample-data/vocab.pkl")
+    vocab = WordVocab.load_vocab("sample-data/vocab.pkl")
 
     lr_warmup = arg.lr_warmup
     batch_size = arg.batch_size
