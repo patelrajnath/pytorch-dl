@@ -2,12 +2,11 @@
 # -*- coding: utf-8 -*-
 """
 pytorch-dl
-Created by raj at 11:05
-Date: January 18, 2020
+Created by raj at 11:05 
+Date: January 18, 2020	
 """
-import os
+import sys
 from argparse import ArgumentParser
-from models.transformer import TransformerEncoderDecoder
 
 import torch
 import tqdm
@@ -15,31 +14,28 @@ from torch import nn
 from torch.optim import Adam, lr_scheduler
 from torch.utils.data import DataLoader
 
-from dataset.data_loader_mbert import MBertDataSet
+from dataset.data_loader_bert import BertDataSet
 from dataset.vocab import WordVocab
-from models.utils.model_utils import save_state
+from models.bert import Bert
+from models.bert_lm import BertLanguageModel
 
 
 def go(arg):
-    input_file = arg.path
-    with open(input_file) as f:
+    with open(arg.path) as f:
         vocab = WordVocab(f)
         vocab.save_vocab("experiments/sample-data/vocab.pkl")
 
     vocab = WordVocab.load_vocab("experiments/sample-data/vocab.pkl")
+    data_set = BertDataSet(arg.path, vocab, arg.max_length)
 
     lr_warmup = arg.lr_warmup
     batch_size = arg.batch_size
-    k = arg.embedding_size
-    h = arg.num_heads
-    depth = arg.depth
-    max_size=arg.max_length
-    modeldir = "bert"
-    data_set = MBertDataSet(input_file, vocab, max_size)
 
-    data_loader = DataLoader(data_set, batch_size=batch_size, shuffle=True)
+    data_loader = DataLoader(data_set, batch_size=batch_size)
+
     vocab_size = len(vocab.stoi)
-    model = TransformerEncoderDecoder(k, h, depth=depth, num_emb=vocab_size, num_emb_target=vocab_size, max_len=max_size)
+    bert = Bert(vocab_size, width=arg.embedding_size, depth=arg.depth, heads=arg.num_heads)
+    model = BertLanguageModel(bert, vocab_size)
 
     criterion = nn.NLLLoss(ignore_index=0)
     optimizer = Adam(lr=arg.lr, params=model.parameters())
@@ -54,6 +50,7 @@ def go(arg):
     if cuda_condition and torch.cuda.device_count() > 1:
         print("Using %d GPUS for BERT" % torch.cuda.device_count())
         model = nn.DataParallel(model, device_ids=[0,1,2,3])
+        # model = nn.parallel.DistributedDataParallel(model, device_ids=[0,1,2,3])
 
     for epoch in range(arg.num_epochs):
         avg_loss = 0
@@ -62,25 +59,34 @@ def go(arg):
                               desc="Running epoch: {}".format(epoch),
                               total=len(data_loader))
         for i, data in data_iter:
-
             data = {key: value.to(device) for key, value in data.items()}
-            bert_input, bert_label = data
-            mask_out = model(data[bert_input])
-            loss = criterion(mask_out.transpose(1, 2), data[bert_label])
+            bert_input, bert_label, segment_label, is_next = data
+            bert_out, sentence_pred = model(data[bert_input], data[segment_label])
+            mask_loss = criterion(bert_out.transpose(1, 2), data[bert_label])
+            next_loss = criterion(sentence_pred, data[is_next])
+            loss = next_loss + mask_loss
+
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             lr_schedular.step(epoch)
             avg_loss += loss.item()
-            if i % arg.wait == 0 and i > 0:
-                checkpoint = "checkpoint.{}.".format(avg_loss/i) + str(epoch) + ".pt"
-                try:
-                    os.makedirs(modeldir)
-                except OSError:
-                    pass
-                save_state(os.path.join(modeldir, checkpoint), model, criterion, optimizer, epoch)
         print('Average loss: {}'.format(avg_loss / len(data_iter)))
 
+
+# if __name__ == '__main__':
+#     train()
+    # num_processes = 4
+    # NOTE: this is required for the ``fork`` method to work
+    # model.share_memory()
+    # processes = []
+    # import torch.multiprocessing as mp
+    # for rank in range(num_processes):
+    #     p = mp.Process(target=train, args=())
+    #     p.start()
+    #     processes.append(p)
+    # for p in processes:
+    #     p.join()
 
 if __name__ == "__main__":
     parser = ArgumentParser()
@@ -101,8 +107,8 @@ if __name__ == "__main__":
                         default=0.0001, type=float)
 
     parser.add_argument("-P", "--path", dest="path",
-                        help="Tensorboard logging directory",
-                        default='experiments/sample-data/europarl.en.enc')
+                        help="sample training file",
+                        default='sample-data/bert-example.txt')
 
     parser.add_argument("-f", "--final", dest="final",
                         help="Whether to run on the real test set (if not included, the validation set is used).",
@@ -140,12 +146,7 @@ if __name__ == "__main__":
     parser.add_argument("--lr-warmup",
                         dest="lr_warmup",
                         help="Learning rate warmup.",
-                        default=1000, type=int)
-
-    parser.add_argument("--wait",
-                        dest="wait",
-                        help="Learning rate warmup.",
-                        default=1000, type=int)
+                        default=10_000, type=int)
 
     parser.add_argument("--gradient-clipping",
                         dest="gradient_clipping",
@@ -157,4 +158,3 @@ if __name__ == "__main__":
     print('OPTIONS ', options)
 
     go(options)
-
