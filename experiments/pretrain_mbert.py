@@ -71,7 +71,7 @@ for epoch in range(100):
         optimizer.step()
         lr_schedular.step(epoch)
         avg_loss += loss.item()
-        if i % 1000 == 0:
+        if i % 1000 == 0 and i > 0:
             checkpoint = "checkpoint.{}.".format(avg_loss/i) + str(epoch) + ".pt"
             save_state(os.path.join(modeldir, checkpoint), model, criterion, optimizer, epoch)
     print('Average loss: {}'.format(avg_loss / len(data_iter)))
