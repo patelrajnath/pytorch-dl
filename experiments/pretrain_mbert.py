@@ -26,14 +26,14 @@ with open(input_file) as f:
 vocab = WordVocab.load_vocab("experiments/sample-data/vocab.pkl")
 
 lr_warmup = 500
-batch_size = 16
+batch_size = 128
 k=512
 h=4
 depth=1
 max_size=80
 data_set = MBertDataSet(input_file, vocab, max_size)
 
-data_loader = DataLoader(data_set, batch_size=batch_size)
+data_loader = DataLoader(data_set, batch_size=batch_size, shuffle=True)
 vocab_size = len(vocab.stoi)
 model = TransformerEncoderDecoder(k, h, depth=depth, num_emb=vocab_size, num_emb_target=vocab_size, max_len=max_size)
 
