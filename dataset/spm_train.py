@@ -9,5 +9,5 @@ import sys
 
 import sentencepiece as spm
 input_file = sys.argv[1]
-spm.SentencePieceTrainer.Train('--input={} '
-                               '--model_prefix=m --vocab_size=5000'.format(input_file))
+vocab_size = sys.argv[2]
+spm.SentencePieceTrainer.Train('--input={} --model_prefix=m --vocab_size={}'.format(input_file, vocab_size))
