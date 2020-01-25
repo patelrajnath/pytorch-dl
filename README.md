@@ -19,17 +19,17 @@ pip3 install -r requirements.txt
 ```
 ##### IMDB classification:
 ```bash
-$python3 classify.py
+python3 classify.py
 ```
 
 ##### Bert training:
 ```bash
-$python3 pretrain_bert.py
+python3 pretrain_bert.py
 ```
 
 ##### mBert training:
 ```bash
-$python3 pretrain_mbert.py
+python3 pretrain_mbert.py
 ```
 
 ## Author
