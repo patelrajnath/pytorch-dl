@@ -64,4 +64,4 @@ for epoch in range(100):
         optimizer.step()
         lr_schedular.step(epoch)
         avg_loss += loss.item()
-    print(avg_loss / len(data_iter))
+    print('Average loss: {}'.format(avg_loss / len(data_iter)))
