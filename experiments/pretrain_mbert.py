@@ -73,5 +73,9 @@ for epoch in range(100):
         avg_loss += loss.item()
         if i % 1000 == 0 and i > 0:
             checkpoint = "checkpoint.{}.".format(avg_loss/i) + str(epoch) + ".pt"
+            try:
+                os.makedirs(modeldir)
+            except OSError:
+                pass
             save_state(os.path.join(modeldir, checkpoint), model, criterion, optimizer, epoch)
     print('Average loss: {}'.format(avg_loss / len(data_iter)))
