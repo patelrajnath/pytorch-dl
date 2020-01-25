@@ -64,6 +64,6 @@ for epoch in range(100):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        lr_schedular.step()
+        lr_schedular.step(epoch)
         avg_loss += loss.item()
-    print(avg_loss)
+    print(avg_loss / len(data_iter))
