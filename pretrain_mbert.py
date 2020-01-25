@@ -114,7 +114,7 @@ if __name__ == "__main__":
 
     parser.add_argument("-E", "--embedding", dest="embedding_size",
                         help="Size of the character embeddings.",
-                        default=128, type=int)
+                        default=512, type=int)
 
     parser.add_argument("-V", "--vocab-size", dest="vocab_size",
                         help="Number of words in the vocabulary.",
@@ -122,7 +122,7 @@ if __name__ == "__main__":
 
     parser.add_argument("-M", "--max", dest="max_length",
                         help="Max sequence length. Longer sequences are clipped (-1 for no limit).",
-                        default=512, type=int)
+                        default=80, type=int)
 
     parser.add_argument("-H", "--heads", dest="num_heads",
                         help="Number of attention heads.",

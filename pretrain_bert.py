@@ -128,7 +128,7 @@ if __name__ == "__main__":
 
     parser.add_argument("-M", "--max", dest="max_length",
                         help="Max sequence length. Longer sequences are clipped (-1 for no limit).",
-                        default=512, type=int)
+                        default=80, type=int)
 
     parser.add_argument("-H", "--heads", dest="num_heads",
                         help="Number of attention heads.",
