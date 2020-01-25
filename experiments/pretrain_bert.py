@@ -47,7 +47,8 @@ if cuda_condition:
 
 if cuda_condition and torch.cuda.device_count() > 1:
     print("Using %d GPUS for BERT" % torch.cuda.device_count())
-    model = nn.DataParallel(model, device_ids=[0,1,2,3])
+    # model = nn.DataParallel(model, device_ids=[0,1,2,3])
+    model = nn.parallel.DistributedDataParallel(model, device_ids=[0,1,2,3])
 
 for epoch in range(100):
     avg_loss = 0
