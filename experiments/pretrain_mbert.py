@@ -26,7 +26,7 @@ with open(input_file) as f:
 vocab = WordVocab.load_vocab("experiments/sample-data/vocab.pkl")
 
 lr_warmup = 500
-batch_size = int(sys.argv[3])
+batch_size = int(sys.argv[2])
 k=512
 h=4
 depth=1
