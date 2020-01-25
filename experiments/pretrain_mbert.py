@@ -5,6 +5,7 @@ pytorch-dl
 Created by raj at 11:05
 Date: January 18, 2020
 """
+import os
 import sys
 
 from models.transformer import TransformerEncoderDecoder
@@ -17,6 +18,7 @@ from torch.utils.data import DataLoader
 
 from dataset.data_loader_mbert import MBertDataSet
 from dataset.vocab import WordVocab
+from models.utils.model_utils import save_state
 
 input_file = sys.argv[1]
 with open(input_file) as f:
@@ -31,6 +33,7 @@ k=512
 h=4
 depth=1
 max_size=80
+modeldir = "bert"
 data_set = MBertDataSet(input_file, vocab, max_size)
 
 data_loader = DataLoader(data_set, batch_size=batch_size, shuffle=True)
@@ -58,6 +61,7 @@ for epoch in range(100):
                           desc="Running epoch: {}".format(epoch),
                           total=len(data_loader))
     for i, data in data_iter:
+
         data = {key: value.to(device) for key, value in data.items()}
         bert_input, bert_label = data
         mask_out = model(data[bert_input])
@@ -67,4 +71,7 @@ for epoch in range(100):
         optimizer.step()
         lr_schedular.step(epoch)
         avg_loss += loss.item()
+        if i % 1000 == 0:
+            checkpoint = "checkpoint" + str(epoch) + ".pt"
+            save_state(os.path.join(modeldir, checkpoint), model, criterion, optimizer, epoch)
     print('Average loss: {}'.format(avg_loss / len(data_iter)))
