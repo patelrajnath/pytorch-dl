@@ -50,23 +50,40 @@ if cuda_condition and torch.cuda.device_count() > 1:
     model = nn.DataParallel(model, device_ids=[0,1,2,3])
     # model = nn.parallel.DistributedDataParallel(model, device_ids=[0,1,2,3])
 
-for epoch in range(100):
-    avg_loss = 0
-    # Setting the tqdm progress bar
-    data_iter = tqdm.tqdm(enumerate(data_loader),
-                          desc="Running epoch: {}".format(epoch),
-                          total=len(data_loader))
-    for i, data in data_iter:
-        data = {key: value.to(device) for key, value in data.items()}
-        bert_input, bert_label, segment_label, is_next = data
-        bert_out, sentence_pred = model(data[bert_input], data[segment_label])
-        mask_loss = criterion(bert_out.transpose(1, 2), data[bert_label])
-        next_loss = criterion(sentence_pred, data[is_next])
-        loss = next_loss + mask_loss
 
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        lr_schedular.step(epoch)
-        avg_loss += loss.item()
-    print('Average loss: {}'.format(avg_loss / len(data_iter)))
+def train():
+    for epoch in range(100):
+        avg_loss = 0
+        # Setting the tqdm progress bar
+        data_iter = tqdm.tqdm(enumerate(data_loader),
+                              desc="Running epoch: {}".format(epoch),
+                              total=len(data_loader))
+        for i, data in data_iter:
+            data = {key: value.to(device) for key, value in data.items()}
+            bert_input, bert_label, segment_label, is_next = data
+            bert_out, sentence_pred = model(data[bert_input], data[segment_label])
+            mask_loss = criterion(bert_out.transpose(1, 2), data[bert_label])
+            next_loss = criterion(sentence_pred, data[is_next])
+            loss = next_loss + mask_loss
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            lr_schedular.step(epoch)
+            avg_loss += loss.item()
+        print('Average loss: {}'.format(avg_loss / len(data_iter)))
+
+
+if __name__ == '__main__':
+    train()
+    # num_processes = 4
+    # NOTE: this is required for the ``fork`` method to work
+    # model.share_memory()
+    # processes = []
+    # import torch.multiprocessing as mp
+    # for rank in range(num_processes):
+    #     p = mp.Process(target=train, args=())
+    #     p.start()
+    #     processes.append(p)
+    # for p in processes:
+    #     p.join()
