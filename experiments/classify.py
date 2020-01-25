@@ -13,7 +13,7 @@ import random, tqdm, sys, math, gzip
 
 # Used for converting between nats and bits
 from models.transformer import Transformer
-from models.utils.models_util import d
+from models.utils.model_utils import d
 
 LOG2E = math.log2(math.e)
 TEXT = data.Field(lower=True, include_lengths=True, batch_first=True)
