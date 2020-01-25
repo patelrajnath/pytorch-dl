@@ -25,5 +25,5 @@ class BertEmbeddings(nn.Module):
         self.embedding_dim = emb_dim
 
     def forward(self, x, segment_label):
-        x = self.position_emb(x) + self.position_emb(x) + self.segment_emb(segment_label)
+        x = self.token_emb(x) + self.position_emb(x) + self.segment_emb(segment_label)
         return self.dropout(x)
