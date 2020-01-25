@@ -5,6 +5,7 @@ pytorch-dl
 Created by raj at 11:05 
 Date: January 18, 2020	
 """
+import sys
 
 import torch
 import tqdm
@@ -12,17 +13,18 @@ from torch import nn
 from torch.optim import Adam, lr_scheduler
 from torch.utils.data import DataLoader
 
-from dataset.data_loader import BertDataSet
+from dataset.data_loader_bert import BertDataSet
 from dataset.vocab import WordVocab
 from models.bert import Bert
 from models.bert_lm import BertLanguageModel
 
-with open("experiments/sample-data/bert-example.txt") as f:
+input_file= sys.argv[1]
+with open(input_file) as f:
     vocab = WordVocab(f)
     vocab.save_vocab("experiments/sample-data/vocab.pkl")
 
 vocab = WordVocab.load_vocab("experiments/sample-data/vocab.pkl")
-data_set = BertDataSet("experiments/sample-data/bert-example.txt", vocab, max_size=512)
+data_set = BertDataSet(input_file, vocab, max_size=512)
 
 lr_warmup = 1000
 batch_size = 4

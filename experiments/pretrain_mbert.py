@@ -5,6 +5,8 @@ pytorch-dl
 Created by raj at 11:05
 Date: January 18, 2020
 """
+import sys
+
 from models.transformer import TransformerEncoderDecoder
 
 import torch
@@ -16,7 +18,8 @@ from torch.utils.data import DataLoader
 from dataset.data_loader_mbert import MBertDataSet
 from dataset.vocab import WordVocab
 
-with open("experiments/sample-data/europarl.en.enc") as f:
+input_file = sys.argv[1]
+with open(input_file) as f:
     vocab = WordVocab(f)
     vocab.save_vocab("experiments/sample-data/vocab.pkl")
 
@@ -28,7 +31,7 @@ k=512
 h=4
 depth=1
 max_size=80
-data_set = MBertDataSet("experiments/sample-data/europarl.en.enc", vocab, max_size)
+data_set = MBertDataSet(input_file, vocab, max_size)
 
 data_loader = DataLoader(data_set, batch_size=batch_size)
 vocab_size = len(vocab.stoi)
