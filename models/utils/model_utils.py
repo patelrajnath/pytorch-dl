@@ -10,6 +10,7 @@ import os
 import traceback
 
 import torch
+from torch.serialization import default_restore_location
 
 
 def mask_(matrices, maskval=0.0, mask_diagonal=True):
@@ -68,20 +69,28 @@ def save_state(filename, model, criterion, optimizer,
     torch_persistent_save(state_dict, filename)
 
 
-def load_model_state(filename, model, cuda_device=None):
+def load_model_state(filename, model, data_parallel=True):
     if not os.path.exists(filename):
         print("Starting training from scratch.")
         return 0
 
     print("Loading model from checkpoints", filename)
-    state = torch.load(filename)
+    state = torch.load(filename, map_location=lambda s, l: default_restore_location(s, 'cpu'))
 
+    from collections import OrderedDict
+    new_state_dict = OrderedDict()
+    # create new OrderedDict that does not contain `module.`
+    if data_parallel:
+        for k, v in state['model'].items():
+            name = k[7:]  # remove `module.`
+            new_state_dict[name] = v
+    else:
+        new_state_dict = state['model']
     # load model parameters
     try:
-        model.load_state_dict(state['model'])
+        model.load_state_dict(new_state_dict)
     except Exception:
         raise Exception('Cannot load model parameters from checkpoint, '
                         'please ensure that the architectures match')
-
     return state['num_updates']
 
