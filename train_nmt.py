@@ -80,12 +80,18 @@ def go(arg):
             lr_schedular.step(epoch)
             avg_loss += loss.item()
             if i % arg.wait == 0 and i > 0:
-                checkpoint = "checkpoint.{}.".format(avg_loss/i) + str(epoch) + ".pt"
                 try:
                     os.makedirs(modeldir)
                 except OSError:
                     pass
+                checkpoint = "checkpoint.{}.".format(avg_loss/i) + str(epoch) + ".pt"
                 save_state(os.path.join(modeldir, checkpoint), model, criterion, optimizer, epoch)
+        try:
+            os.makedirs(modeldir)
+        except OSError:
+            pass
+        checkpoint = "checkpoint.{}.".format(avg_loss / len(data_iter)) + str(epoch) + ".pt"
+        save_state(os.path.join(modeldir, checkpoint), model, criterion, optimizer, epoch)
         print('Average loss: {}'.format(avg_loss / len(data_iter)))
 
 
