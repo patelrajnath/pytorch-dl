@@ -38,7 +38,7 @@ def go(arg):
     h = arg.num_heads
     depth = arg.depth
     max_size=arg.max_length
-    modeldir = "bert"
+    modeldir = "nmt"
     data_set = TranslationDataSet(input_file, arg.source, arg.target, vocab_src, vocab_tgt, max_size)
 
     data_loader = DataLoader(data_set, batch_size=batch_size, shuffle=True)
