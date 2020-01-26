@@ -19,7 +19,7 @@ from torch.optim import Adam, lr_scheduler
 from torch.utils.data import DataLoader
 
 from dataset.vocab import WordVocab
-from models.utils.model_utils import save_state
+from models.utils.model_utils import save_state, load_model_state
 
 
 def go(arg):
@@ -69,11 +69,10 @@ def go(arg):
                               total=len(data_loader))
         print(len(data_iter))
         for i, data in data_iter:
-
             data = {key: value.to(device) for key, value in data.items()}
-            bert_input, bert_label = data
-            mask_out = model(data[bert_input])
-            loss = criterion(mask_out.transpose(1, 2), data[bert_label])
+            src_tokens, tgt_tokens = data
+            decoder_out = model(data[src_tokens])
+            loss = criterion(decoder_out.transpose(1, 2), data[tgt_tokens])
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -93,6 +92,57 @@ def go(arg):
         checkpoint = "checkpoint.{}.".format(avg_loss / len(data_iter)) + str(epoch) + ".pt"
         save_state(os.path.join(modeldir, checkpoint), model, criterion, optimizer, epoch)
         print('Average loss: {}'.format(avg_loss / len(data_iter)))
+
+
+def decode(arg):
+    vocab_src = WordVocab.load_vocab("sample-data/{}.pkl".format(arg.source))
+    vocab_tgt = WordVocab.load_vocab("sample-data/{}.pkl".format(arg.target))
+
+    batch_size = 1
+    k = arg.embedding_size
+    h = arg.num_heads
+    depth = arg.depth
+    max_size = arg.max_length
+    modeldir = "/home/raj/PycharmProjects/models/nmt"
+    input_file = arg.path
+    data_set = TranslationDataSet(input_file, arg.source, arg.target, vocab_src, vocab_tgt, max_size)
+
+    data_loader = DataLoader(data_set, batch_size=batch_size)
+    vocab_size_src = len(vocab_src.stoi)
+    vocab_size_tgt = len(vocab_tgt.stoi)
+
+    model = TransformerEncoderDecoder(k, h, depth=depth, num_emb=vocab_size_src,
+                                      num_emb_target=vocab_size_tgt, max_len=max_size)
+
+    load_model_state(os.path.join(modeldir, 'checkpoint_best.pt'), model)
+
+    cuda_condition = torch.cuda.is_available()
+    device = torch.device("cuda:0" if cuda_condition else "cpu")
+
+    # Setting the tqdm progress bar
+    data_iter = tqdm.tqdm(enumerate(data_loader),
+                          desc="Decoding",
+                          total=len(data_loader))
+    with torch.no_grad():
+        for i, data in data_iter:
+            data = {key: value.to(device) for key, value in data.items()}
+            src_tokens, tgt_tokens = data
+            prob = model(data[src_tokens])
+            print(prob.size())
+            _, out = torch.max(prob, dim=2)
+            print("Translation:", end="\t")
+            for i in range(1, out.size(1)):
+                sym = vocab_tgt.itos[out[0, i]]
+                if sym == "</s>": break
+                print(sym, end=" ")
+            print()
+            print("Target:", end="\t")
+            for i in range(1, data[tgt_tokens].size(1)):
+                sym = vocab_tgt.itos[data[tgt_tokens][0, i]]
+                if sym == "<pad>": break
+                print(sym, end=" ")
+            print()
+            break
 
 
 if __name__ == "__main__":
@@ -175,5 +225,6 @@ if __name__ == "__main__":
 
     print('OPTIONS ', options)
 
-    go(options)
+    # go(options)
+    decode(options)
 
