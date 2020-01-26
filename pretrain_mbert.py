@@ -62,7 +62,6 @@ def go(arg):
                               desc="Running epoch: {}".format(epoch),
                               total=len(data_loader))
         for i, data in data_iter:
-
             data = {key: value.to(device) for key, value in data.items()}
             bert_input, bert_label = data
             mask_out = model(data[bert_input])
@@ -102,7 +101,7 @@ if __name__ == "__main__":
 
     parser.add_argument("-P", "--path", dest="path",
                         help="sample training file",
-                        default='sample-data/europarl.en.enc')
+                        default='sample-data/europarl.enc.en')
 
     parser.add_argument("-f", "--final", dest="final",
                         help="Whether to run on the real test set (if not included, the validation set is used).",
