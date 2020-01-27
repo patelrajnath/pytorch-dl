@@ -67,7 +67,6 @@ def go(arg):
         data_iter = tqdm.tqdm(enumerate(data_loader),
                               desc="Running epoch: {}".format(epoch),
                               total=len(data_loader))
-        print(len(data_iter))
         for i, data in data_iter:
             data = {key: value.to(device) for key, value in data.items()}
             src_tokens, tgt_tokens = data
