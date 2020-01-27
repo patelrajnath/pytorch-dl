@@ -71,7 +71,7 @@ def go(arg):
         for i, data in data_iter:
             data = {key: value.to(device) for key, value in data.items()}
             src_tokens, tgt_tokens = data
-            decoder_out = model(data[src_tokens])
+            decoder_out = model(data[src_tokens], data[tgt_tokens])
             loss = criterion(decoder_out.transpose(1, 2), data[tgt_tokens])
             optimizer.zero_grad()
             loss.backward()
@@ -97,6 +97,10 @@ def go(arg):
 def decode(arg):
     vocab_src = WordVocab.load_vocab("sample-data/{}.pkl".format(arg.source))
     vocab_tgt = WordVocab.load_vocab("sample-data/{}.pkl".format(arg.target))
+    print(len(vocab_tgt.counter))
+    print(len(vocab_src.counter))
+    print(len(vocab_src.itos))
+    print(len(vocab_tgt.itos))
 
     batch_size = 1
     k = arg.embedding_size
@@ -133,7 +137,7 @@ def decode(arg):
             print("Translation:", end="\t")
             for i in range(1, out.size(1)):
                 sym = vocab_tgt.itos[out[0, i]]
-                if sym == "</s>": break
+                if sym == "<pad>": break
                 print(sym, end=" ")
             print()
             print("Target:", end="\t")
@@ -225,6 +229,6 @@ if __name__ == "__main__":
 
     print('OPTIONS ', options)
 
-    # go(options)
-    decode(options)
+    go(options)
+    # decode(options)
 
