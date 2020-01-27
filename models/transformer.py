@@ -213,16 +213,32 @@ class TransformerDecoder(nn.Module):
         return bert_emb
 
 
+class Generator(nn.Module):
+    def __init__(self, k, num_emb_target):
+        super().__init__()
+        self.ff = nn.Linear(k, num_emb_target)
+        self.softmax = nn.LogSoftmax(dim=-1)
+
+    def forward(self, enc_dec):
+        ff_out = self.ff(enc_dec)
+        return self.softmax(ff_out)
+
+
 class TransformerEncoderDecoder(nn.Module):
     def __init__(self, k, heads, depth, num_emb, num_emb_target, max_len, mask_future_steps=True):
         super().__init__()
         self.encoder = TransformerEncoder(k, heads, depth, num_emb, max_len)
         self.decoder = TransformerDecoder(k, heads, depth, num_emb_target, max_len, mask_future_steps)
-        self.ff = nn.Linear(k, num_emb_target)
-        self.softmax = nn.LogSoftmax(dim=-1)
+        self.generator = Generator(k, num_emb_target)
 
-    def forward(self, x):
-        enc = self.encoder(x)
-        enc_dec = self.decoder(x, enc)
-        ff_out = self.ff(enc_dec)
-        return self.softmax(ff_out)
+    def forward(self, src_tokens, y=None):
+        enc = self.encoder(src_tokens)
+
+        if type(y) != type(None):
+            tgt_tokens = y
+        else:
+            tgt_tokens = src_tokens
+
+        enc_dec = self.decoder(tgt_tokens, enc)
+
+        return self.generator(enc_dec)
