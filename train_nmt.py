@@ -9,6 +9,8 @@ Date: January 26, 2020
 import os
 from argparse import ArgumentParser
 
+from torch.autograd import Variable
+
 from dataset.data_loader_translation import TranslationDataSet
 from models.transformer import TransformerEncoderDecoder
 
@@ -126,13 +128,26 @@ def decode(arg):
     data_iter = tqdm.tqdm(enumerate(data_loader),
                           desc="Decoding",
                           total=len(data_loader))
+
+    def greedy_decode(model, src, max_len, start_symbol):
+        memory = model.encoder(src)
+        ys = [start_symbol]
+        padding = [vocab_tgt.pad_index for _ in range(max_len - len(ys))]
+        ys.extend(padding)
+        ys = torch.tensor(ys).unsqueeze(0)
+        for i in range(max_len - 1):
+            out = model.decoder(ys, memory)
+            prob = model.generator(out[:, -1])
+            _, next_word = torch.max(prob, dim=1)
+            ys[0, i] = next_word
+        return ys
+
     with torch.no_grad():
         for i, data in data_iter:
             data = {key: value.to(device) for key, value in data.items()}
             src_tokens, tgt_tokens = data
-            prob = model(data[src_tokens])
-            print(prob.size())
-            _, out = torch.max(prob, dim=2)
+            out = greedy_decode(model, data[src_tokens], max_len=80, start_symbol=vocab_tgt.sos_index)
+            print(out)
             print("Translation:", end="\t")
             for i in range(1, out.size(1)):
                 sym = vocab_tgt.itos[out[0, i]]
@@ -228,6 +243,6 @@ if __name__ == "__main__":
 
     print('OPTIONS ', options)
 
-    go(options)
-    # decode(options)
+    # go(options)
+    decode(options)
 
