@@ -29,7 +29,7 @@ class TranslationDataSet(Dataset):
         self.lines_tgt = list()
 
         for lang in (self.src, self.tgt):
-            with open(self.corpus_path_prefix + '.' + self.src, "r", encoding=encoding) as f:
+            with open(self.corpus_path_prefix + '.' + lang, "r", encoding=encoding) as f:
                 if lang == self.src:
                     self.lines_src = [line[:-1].strip()
                              for line in tqdm.tqdm(f, desc="Loading {} Dataset...".format(lang),
@@ -50,8 +50,7 @@ class TranslationDataSet(Dataset):
         tgt_tokens = self.string_to_index(line_tgt, vocab=self.vocab_tgt)
 
         src_tokens = [self.vocab_src.sos_index] + src_tokens + [self.vocab_src.eos_index]
-
-        tgt_tokens = [self.vocab_tgt.pad_index] + tgt_tokens + [self.vocab_tgt.pad_index]
+        tgt_tokens = [self.vocab_tgt.sos_index] + tgt_tokens + [self.vocab_tgt.eos_index]
 
         src_tokens = src_tokens[:self.max_size]
         tgt_tokens = tgt_tokens[:self.max_size]
@@ -68,10 +67,12 @@ class TranslationDataSet(Dataset):
 
         return {key: torch.tensor(value) for key, value in output.items()}
 
-    def string_to_index(self, sentence: str, vocab: Counter) -> list:
+    def string_to_index(self, sentence, vocab):
         tokens = sentence.split()
         for i, token in enumerate(tokens):
             tokens[i] = vocab.stoi.get(token, vocab.unk_index)
+            if tokens[i] == vocab.unk_index:
+                print(token, 'is unk')
         return tokens
 
     def get_corpus_line(self, index, lang):
