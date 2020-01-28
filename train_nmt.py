@@ -104,11 +104,11 @@ def decode(arg):
     h = arg.num_heads
     depth = arg.depth
     max_size = arg.max_length
-    modeldir = "/home/raj/PycharmProjects/models/nmt"
+    modeldir = "/home/raj/nmt/data/"
     input_file = arg.path
     data_set = TranslationDataSet(input_file, arg.source, arg.target, vocab_src, vocab_tgt, max_size)
 
-    data_loader = DataLoader(data_set, batch_size=batch_size)
+    data_loader = DataLoader(data_set, batch_size=batch_size, shuffle=False)
     vocab_size_src = len(vocab_src.stoi)
     vocab_size_tgt = len(vocab_tgt.stoi)
 
@@ -120,22 +120,27 @@ def decode(arg):
     cuda_condition = torch.cuda.is_available()
     device = torch.device("cuda:0" if cuda_condition else "cpu")
 
+    if cuda_condition:
+        model.cuda()
+
     # Setting the tqdm progress bar
     data_iter = tqdm.tqdm(enumerate(data_loader),
                           desc="Decoding",
                           total=len(data_loader))
 
     def greedy_decode(model, src, max_len, start_symbol):
+        print(src)
         memory = model.encoder(src)
         ys = [start_symbol]
         padding = [vocab_tgt.pad_index for _ in range(max_len - len(ys))]
         ys.extend(padding)
         ys = torch.tensor(ys).unsqueeze(0)
+        ys = ys.to(device)
         for i in range(max_len - 1):
             out = model.decoder(ys, memory)
             prob = model.generator(out[:, -1])
             _, next_word = torch.max(prob, dim=1)
-            ys[0, i] = next_word
+            ys[0, i+1] = next_word
         return ys
 
     with torch.no_grad():
@@ -239,5 +244,5 @@ if __name__ == "__main__":
 
     print('OPTIONS ', options)
 
-    go(options)
-    # decode(options)
+    # go(options)
+    decode(options)
