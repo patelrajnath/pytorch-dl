@@ -98,10 +98,6 @@ def go(arg):
 def decode(arg):
     vocab_src = WordVocab.load_vocab("sample-data/{}.pkl".format(arg.source))
     vocab_tgt = WordVocab.load_vocab("sample-data/{}.pkl".format(arg.target))
-    print(len(vocab_tgt.counter))
-    print(len(vocab_src.counter))
-    print(len(vocab_src.itos))
-    print(len(vocab_tgt.itos))
 
     batch_size = 1
     k = arg.embedding_size
@@ -243,6 +239,5 @@ if __name__ == "__main__":
 
     print('OPTIONS ', options)
 
-    # go(options)
-    decode(options)
-
+    go(options)
+    # decode(options)
