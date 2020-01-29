@@ -205,23 +205,22 @@ class TransformerDecoder(nn.Module):
             self.tblocks_decoder.append(TransformerBlockDecoder(k, heads, mask_future_steps))
 
     def forward(self, x, enc):
-        bert_emb = self.bert_emb(x)
-        inner_state = [bert_emb]
+        x = self.bert_emb(x)
+        inner_state = [x]
         for i, layer in enumerate(self.tblocks_decoder):
-            bert_emb = layer(bert_emb, enc)
+            x = layer(x, enc)
             inner_state.append(x)
-        return bert_emb
+        return x
 
 
 class Generator(nn.Module):
     def __init__(self, k, num_emb_target):
         super().__init__()
         self.ff = nn.Linear(k, num_emb_target)
-        self.softmax = nn.LogSoftmax(dim=-1)
 
     def forward(self, enc_dec):
         ff_out = self.ff(enc_dec)
-        return self.softmax(ff_out)
+        return F.log_softmax(ff_out, dim=-1)
 
 
 class TransformerEncoderDecoder(nn.Module):
