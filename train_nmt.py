@@ -63,6 +63,9 @@ def go(arg):
         print("Using %d GPUS for BERT" % torch.cuda.device_count())
         model = nn.DataParallel(model, device_ids=[0,1,2,3])
 
+    def truncate_division(x, y):
+        return round(x/y, 2)
+
     for epoch in range(arg.num_epochs):
         avg_loss = 0
         # Setting the tqdm progress bar
@@ -84,13 +87,13 @@ def go(arg):
                     os.makedirs(modeldir)
                 except OSError:
                     pass
-                checkpoint = "checkpoint.{}.".format(avg_loss/i) + str(epoch) + ".pt"
+                checkpoint = "checkpoint.{}.".format(truncate_division(avg_loss, i)) + 'epoch' + str(epoch) + ".pt"
                 save_state(os.path.join(modeldir, checkpoint), model, criterion, optimizer, epoch)
         try:
             os.makedirs(modeldir)
         except OSError:
             pass
-        checkpoint = "checkpoint.{}.".format(avg_loss / len(data_iter)) + str(epoch) + ".pt"
+        checkpoint = "checkpoint.{}.".format(truncate_division(avg_loss, len(data_iter))) + 'epoch' + str(epoch) + ".pt"
         save_state(os.path.join(modeldir, checkpoint), model, criterion, optimizer, epoch)
         print('Average loss: {}'.format(avg_loss / len(data_iter)))
 
@@ -244,5 +247,5 @@ if __name__ == "__main__":
 
     print('OPTIONS ', options)
 
-    # go(options)
-    decode(options)
+    go(options)
+    # decode(options)
