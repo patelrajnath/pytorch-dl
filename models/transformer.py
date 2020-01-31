@@ -88,7 +88,7 @@ class TransformerBlock(nn.Module):
 
 
 class TransformerBlockDecoder(nn.Module):
-    def __init__(self, k, heads, ff=4, dropout=0.0, mask_future_steps=False):
+    def __init__(self, k, heads, ff=4, dropout=0.1, mask_future_steps=False):
         super().__init__()
 
         # Masked self attention
@@ -131,7 +131,7 @@ class TransformerBlockDecoder(nn.Module):
 
 
 class Transformer(nn.Module):
-    def __init__(self, k, heads, depth, seq_length, num_tokens, num_classes, dropout=0.0):
+    def __init__(self, k, heads, depth, seq_length, num_tokens, num_classes, dropout=0.1):
         super().__init__()
 
         self.num_tokens = num_tokens
