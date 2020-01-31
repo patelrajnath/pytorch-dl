@@ -1,11 +1,10 @@
 import torch
 from torch import nn
-from torch.autograd import Variable
 import torch.nn.functional as F
+from torch.optim import Adam
 
-from torchtext import data, datasets, vocab
+from torchtext import data, datasets
 
-import numpy as np
 
 from argparse import ArgumentParser
 
@@ -55,12 +54,12 @@ def go(arg):
         mx = arg.max_length
 
     # create the model
-    model = Transformer(k=arg.embedding_size, heads=arg.num_heads, depth=arg.depth,
+    model = Transformer(k=arg.dim_model, heads=arg.num_heads, depth=arg.depth,
                         seq_length=mx, num_tokens=arg.vocab_size, num_classes=NUM_CLS)
     if torch.cuda.is_available():
         model.cuda()
 
-    opt = torch.optim.Adam(lr=arg.lr, params=model.parameters())
+    opt = Adam(params=model.parameters(), lr=0, betas=(0.9, 0.98), eps=1e-9)
     sch = torch.optim.lr_scheduler.LambdaLR(opt, lambda i: min(i / (arg.lr_warmup / arg.batch_size), 1.0))
 
     # training loop
@@ -153,7 +152,7 @@ if __name__ == "__main__":
                         help="Use max pooling in the final classification layer.",
                         action="store_true")
 
-    parser.add_argument("-E", "--embedding", dest="embedding_size",
+    parser.add_argument("-E", "--dim_model", dest="dim_model",
                         help="Size of the character embeddings.",
                         default=128, type=int)
 

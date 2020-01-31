@@ -30,7 +30,7 @@ def go(arg):
 
     lr_warmup = arg.lr_warmup
     batch_size = arg.batch_size
-    k = arg.embedding_size
+    k = arg.dim_model
     h = arg.num_heads
     depth = arg.depth
     max_size=arg.max_length
@@ -42,7 +42,7 @@ def go(arg):
     model = TransformerEncoderDecoder(k, h, depth=depth, num_emb=vocab_size, num_emb_target=vocab_size, max_len=max_size)
 
     criterion = nn.NLLLoss(ignore_index=0)
-    optimizer = Adam(lr=arg.lr, params=model.parameters())
+    optimizer = Adam(params=model.parameters(), lr=0, betas=(0.9, 0.98), eps=1e-9)
     lr_schedular = lr_scheduler.LambdaLR(optimizer, lambda i: min(i / (lr_warmup / batch_size), 1.0))
 
     cuda_condition = torch.cuda.is_available()
@@ -111,7 +111,7 @@ if __name__ == "__main__":
                         help="Use max pooling in the final classification layer.",
                         action="store_true")
 
-    parser.add_argument("-E", "--embedding", dest="embedding_size",
+    parser.add_argument("-E", "--dim_model", dest="dim_model",
                         help="Size of the character embeddings.",
                         default=512, type=int)
 
