@@ -42,7 +42,8 @@ def go(arg):
     model = TransformerEncoderDecoder(k, h, depth=depth, num_emb=vocab_size, num_emb_target=vocab_size, max_len=max_size)
 
     criterion = nn.NLLLoss(ignore_index=0)
-    optimizer = Adam(params=model.parameters(), lr=0, betas=(0.9, 0.98), eps=1e-9)
+    optimizer = Adam(params=model.parameters(), lr=1e-3, betas=(0.9, 0.999), eps=1e-8,
+                     weight_decay=0, amsgrad=False)
     lr_schedular = lr_scheduler.LambdaLR(optimizer, lambda i: min(i / (lr_warmup / batch_size), 1.0))
 
     cuda_condition = torch.cuda.is_available()

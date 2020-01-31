@@ -59,7 +59,8 @@ def go(arg):
     if torch.cuda.is_available():
         model.cuda()
 
-    opt = Adam(params=model.parameters(), lr=0, betas=(0.9, 0.98), eps=1e-9)
+    opt = Adam(params=model.parameters(), lr=1e-3, betas=(0.9, 0.999), eps=1e-8,
+                     weight_decay=0, amsgrad=False)
     sch = torch.optim.lr_scheduler.LambdaLR(opt, lambda i: min(i / (arg.lr_warmup / arg.batch_size), 1.0))
 
     # training loop
