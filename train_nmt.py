@@ -113,7 +113,7 @@ def decode(arg):
     h = arg.num_heads
     depth = arg.depth
     max_size = arg.max_length
-    modeldir = "nmt/checkpoint.0.0.epoch79.pt"
+    modeldir = "/home/raj/PycharmProjects/models/nmt/checkpoint.6.24.epoch79.pt"
     input_file = arg.path
     data_set = TranslationDataSet(input_file, arg.source, arg.target, vocab_src, vocab_tgt, max_size)
 
@@ -196,10 +196,10 @@ if __name__ == "__main__":
                         default='sample-data/europarl.enc')
     parser.add_argument("-S", "--src", dest="source",
                         help="source language",
-                        default='en')
+                        default='it')
     parser.add_argument("-T", "--tgt", dest="target",
                         help="target language",
-                        default='it')
+                        default='en')
 
     parser.add_argument("-f", "--final", dest="final",
                         help="Whether to run on the real test set (if not included, the validation set is used).",
@@ -209,7 +209,7 @@ if __name__ == "__main__":
                         help="Use max pooling in the final classification layer.",
                         action="store_true")
 
-    parser.add_argument("-E", "--dim-model", dest="dim_model",
+    parser.add_argument("-D", "--dim-model", dest="dim_model",
                         help="model size.",
                         default=512, type=int)
 
