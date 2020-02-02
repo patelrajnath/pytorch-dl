@@ -9,8 +9,6 @@ Date: January 26, 2020
 import os
 from argparse import ArgumentParser
 
-from torch.autograd import Variable
-
 from criterion.label_smoothed_cross_entropy import LabelSmoothedCrossEntropy
 from dataset.data_loader_translation import TranslationDataSet
 from models.transformer import TransformerEncoderDecoder
@@ -264,5 +262,5 @@ if __name__ == "__main__":
 
     print('OPTIONS ', options)
 
-    # go(options)
-    decode(options)
+    go(options)
+    # decode(options)
