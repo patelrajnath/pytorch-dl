@@ -47,7 +47,7 @@ def go(arg):
     vocab_size_src = len(vocab_src.stoi)
     vocab_size_tgt = len(vocab_tgt.stoi)
     model = TransformerEncoderDecoder(k, h, dropout=arg.dropout, depth=depth, num_emb=vocab_size_src,
-                                      num_emb_target=vocab_size_tgt, max_len=max_size)
+                                      num_emb_target=vocab_size_tgt, max_len=max_size, mask_future_steps=False)
 
     # Initialize parameters with Glorot / fan_avg.
     for p in model.parameters():
