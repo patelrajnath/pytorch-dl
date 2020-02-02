@@ -21,6 +21,7 @@ from torch.utils.data import DataLoader
 
 from dataset.vocab import WordVocab
 from models.utils.model_utils import save_state, load_model_state
+from optim.lr_warm_up import GradualWarmupScheduler
 
 
 def go(arg):
@@ -55,9 +56,10 @@ def go(arg):
 
     criterion = LabelSmoothedCrossEntropy(tgt_vocab_size=vocab_size_tgt, label_smoothing=arg.label_smoothing,
                                           ignore_index=vocab_tgt.pad_index)
-    optimizer = Adam(params=model.parameters(), lr=arg.lr, betas=(0.9, 0.999), eps=1e-8,
-                     weight_decay=0, amsgrad=False)
-    lr_schedular = lr_scheduler.LambdaLR(optimizer, lambda i: min(i / (lr_warmup / batch_size), 1.0))
+    optimizer = Adam(params=model.parameters(), lr=arg.lr, betas=(0.9, 0.999), eps=1e-8)
+    scheduler_cosine = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, arg.num_epochs)
+    scheduler_warmup = GradualWarmupScheduler(optimizer, multiplier=8, total_epoch=lr_warmup,
+                                              after_scheduler=scheduler_cosine)
 
     cuda_condition = torch.cuda.is_available()
     device = torch.device("cuda:0" if cuda_condition else "cpu")
@@ -72,7 +74,7 @@ def go(arg):
     def truncate_division(x, y):
         return round(x/y, 2)
 
-    for epoch in range(arg.num_epochs):
+    for epoch in range(1, arg.num_epochs):
         avg_loss = 0
         # Setting the tqdm progress bar
         data_iter = tqdm.tqdm(enumerate(data_loader),
@@ -87,7 +89,7 @@ def go(arg):
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            lr_schedular.step(epoch)
+            scheduler_warmup.step()
             avg_loss += loss.item()
             if i % arg.wait == 0 and i > 0:
                 try:
@@ -96,6 +98,7 @@ def go(arg):
                     pass
                 checkpoint = "checkpoint.{}.".format(truncate_division(avg_loss, i)) + 'epoch' + str(epoch) + ".pt"
                 save_state(os.path.join(modeldir, checkpoint), model, criterion, optimizer, epoch)
+                print("Learning-rate: ", scheduler_warmup.get_lr()[0])
         try:
             os.makedirs(modeldir)
         except OSError:
@@ -103,6 +106,7 @@ def go(arg):
         checkpoint = "checkpoint.{}.".format(truncate_division(avg_loss, len(data_iter))) + 'epoch' + str(epoch) + ".pt"
         save_state(os.path.join(modeldir, checkpoint), model, criterion, optimizer, epoch)
         print('Average loss: {}'.format(avg_loss / len(data_iter)))
+        print("Learning-rate: ", scheduler_warmup.get_lr()[0])
 
 
 def decode(arg):
@@ -247,7 +251,7 @@ if __name__ == "__main__":
     parser.add_argument("--lr-warmup",
                         dest="lr_warmup",
                         help="Learning rate warmup.",
-                        default=1000, type=int)
+                        default=4000, type=int)
 
     parser.add_argument("--wait",
                         dest="wait",
