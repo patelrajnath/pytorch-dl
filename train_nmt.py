@@ -8,6 +8,7 @@ Date: January 26, 2020
 
 import os
 from argparse import ArgumentParser
+from math import inf
 
 from criterion.label_smoothed_cross_entropy import LabelSmoothedCrossEntropy
 from dataset.data_loader_translation import TranslationDataSet
@@ -47,7 +48,8 @@ def go(arg):
     vocab_size_src = len(vocab_src.stoi)
     vocab_size_tgt = len(vocab_tgt.stoi)
     model = TransformerEncoderDecoder(k, h, dropout=arg.dropout, depth=depth, num_emb=vocab_size_src,
-                                      num_emb_target=vocab_size_tgt, max_len=max_size)
+                                      num_emb_target=vocab_size_tgt, max_len=max_size,
+                                      mask_future_steps=True)
 
     # Initialize parameters with Glorot / fan_avg.
     for p in model.parameters():
@@ -74,7 +76,7 @@ def go(arg):
 
     def truncate_division(x, y):
         return round(x/y, 2)
-
+    previous_best = inf
     for epoch in range(1, arg.num_epochs):
         avg_loss = 0
         # Setting the tqdm progress bar
@@ -104,11 +106,15 @@ def go(arg):
             os.makedirs(modeldir)
         except OSError:
             pass
-        checkpoint = "checkpoint.{}.".format(truncate_division(avg_loss, len(data_iter))) + 'epoch' + str(epoch) + ".pt"
+        loss_average = truncate_division(avg_loss, len(data_iter))
+        checkpoint = "checkpoint.{}.".format(loss_average) + 'epoch' + str(epoch) + ".pt"
         save_state(os.path.join(modeldir, checkpoint), model, criterion, optimizer, epoch)
         print('Average loss: {}'.format(avg_loss / len(data_iter)))
         print("Learning-rate: ", scheduler_warmup.get_lr()[0])
 
+        if previous_best > loss_average :
+            save_state(os.path.join(modeldir, 'checkpoints_best.pt'), model, criterion, optimizer, epoch)
+            previous_best = loss_average
 
 def decode(arg):
     vocab_src = WordVocab.load_vocab("sample-data/{}.pkl".format(arg.source))
@@ -119,7 +125,7 @@ def decode(arg):
     h = arg.num_heads
     depth = arg.depth
     max_size = arg.max_length
-    modeldir = "/home/raj/PycharmProjects/models/nmt/"
+    modeldir = "nmt"
     input_file = arg.path
     data_set = TranslationDataSet(input_file, arg.source, arg.target, vocab_src, vocab_tgt, max_size)
 
@@ -128,9 +134,15 @@ def decode(arg):
     vocab_size_tgt = len(vocab_tgt.stoi)
 
     model = TransformerEncoderDecoder(k, h, depth=depth, num_emb=vocab_size_src,
-                                      num_emb_target=vocab_size_tgt, max_len=max_size, mask_future_steps=False)
+                                      num_emb_target=vocab_size_tgt, max_len=max_size,
+                                      mask_future_steps=True)
+    # Initialize parameters with Glorot / fan_avg.
+    for p in model.parameters():
+        if p.dim() > 1:
+            nn.init.xavier_uniform_(p)
 
-    load_model_state(os.path.join(modeldir, 'checkpoint.0.34.epoch13.pt'), model)
+    load_model_state(os.path.join(modeldir, 'checkpoints_best.pt'), model,
+                     data_parallel=False)
 
     cuda_condition = torch.cuda.is_available()
     device = torch.device("cuda:0" if cuda_condition else "cpu")
@@ -268,5 +280,5 @@ if __name__ == "__main__":
 
     print('OPTIONS ', options)
 
-    # go(options)
-    decode(options)
+    go(options)
+    # decode(options)
