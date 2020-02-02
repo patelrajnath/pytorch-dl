@@ -186,12 +186,12 @@ if __name__ == "__main__":
                         help="The batch size.",
                         default=4, type=int)
 
-    parser.add_argument("-l", "--learn-rate",
+    parser.add_argument("--learn-rate",
                         dest="lr",
                         help="Learning rate",
                         default=0.0005, type=float)
 
-    parser.add_argument("-d", "--dropout",
+    parser.add_argument("--dropout",
                         dest="dropout",
                         help="Learning rate",
                         default=0.3, type=float)
@@ -234,7 +234,7 @@ if __name__ == "__main__":
                         help="Number of attention heads.",
                         default=8, type=int)
 
-    parser.add_argument("-d", "--depth", dest="depth",
+    parser.add_argument("--depth", dest="depth",
                         help="Depth of the network (nr. of self-attention layers)",
                         default=6, type=int)
 
