@@ -6,21 +6,9 @@ Created by raj at 11:06
 Date: February 02, 2020	
 """
 
-#!/usr/bin/env python2.7
-# -*- coding: utf-8 -*-
-
-"""
- Copyright (c) 2018 Raj Nath Patel
- Licensed under the GNU Public License.
- Author: Raj Nath Patel
- Email: patelrajnath (at) gmail (dot) com
- Created: 25/May/2018 03:55
- """
 import torch
-
-
 from torch import nn
-from torch.autograd import Variable
+import torch.nn.functional as F
 
 
 class LabelSmoothedCrossEntropy(nn.Module):
@@ -39,15 +27,14 @@ class LabelSmoothedCrossEntropy(nn.Module):
         one_hot = torch.full((tgt_vocab_size,), smoothing_value)
         one_hot[self.ignore_index] = 0
         self.register_buffer('one_hot', one_hot.unsqueeze(0))
-
         self.confidence = 1.0 - label_smoothing
 
-    def forward(self, output, target):
+    def forward(self, output, target, device):
         """
         output (FloatTensor): batch_size x n_classes
         target (LongTensor): batch_size
         """
-        model_prob = self.one_hot.repeat(target.size(0), 1)
+        model_prob = self.one_hot.repeat(target.size(0), 1).to(device)
         model_prob.scatter_(1, target.unsqueeze(1), self.confidence)
         model_prob.masked_fill_((target == self.ignore_index).unsqueeze(1), 0)
 
