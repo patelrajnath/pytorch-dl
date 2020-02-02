@@ -11,6 +11,7 @@ from argparse import ArgumentParser
 
 from torch.autograd import Variable
 
+from criterion.label_smoothed_cross_entropy import LabelSmoothedCrossEntropy
 from dataset.data_loader_translation import TranslationDataSet
 from models.transformer import TransformerEncoderDecoder
 
@@ -46,7 +47,7 @@ def go(arg):
     data_loader = DataLoader(data_set, batch_size=batch_size, shuffle=True)
     vocab_size_src = len(vocab_src.stoi)
     vocab_size_tgt = len(vocab_tgt.stoi)
-    model = TransformerEncoderDecoder(k, h, depth=depth, num_emb=vocab_size_src,
+    model = TransformerEncoderDecoder(k, h, dropout=arg.dropout, depth=depth, num_emb=vocab_size_src,
                                       num_emb_target=vocab_size_tgt, max_len=max_size)
 
     # Initialize parameters with Glorot / fan_avg.
@@ -54,8 +55,9 @@ def go(arg):
         if p.dim() > 1:
             nn.init.xavier_uniform_(p)
 
-    criterion = nn.NLLLoss(ignore_index=0)
-    optimizer = Adam(params=model.parameters(), lr=1e-3, betas=(0.9, 0.999), eps=1e-8,
+    criterion = LabelSmoothedCrossEntropy(size=vocab_size_tgt, padding_idx=vocab_tgt.pad_index,
+                                          smoothing=arg.label_smoothing)
+    optimizer = Adam(params=model.parameters(), lr=arg.lr, betas=(0.9, 0.999), eps=1e-8,
                      weight_decay=0, amsgrad=False)
     lr_schedular = lr_scheduler.LambdaLR(optimizer, lambda i: min(i / (lr_warmup / batch_size), 1.0))
 
@@ -113,7 +115,7 @@ def decode(arg):
     h = arg.num_heads
     depth = arg.depth
     max_size = arg.max_length
-    modeldir = "/home/raj/PycharmProjects/models/nmt/checkpoint.6.24.epoch79.pt"
+    modeldir = "/home/raj/PycharmProjects/models/nmt/"
     input_file = arg.path
     data_set = TranslationDataSet(input_file, arg.source, arg.target, vocab_src, vocab_tgt, max_size)
 
@@ -124,7 +126,7 @@ def decode(arg):
     model = TransformerEncoderDecoder(k, h, depth=depth, num_emb=vocab_size_src,
                                       num_emb_target=vocab_size_tgt, max_len=max_size)
 
-    load_model_state(os.path.join(modeldir, 'checkpoint_best.pt'), model)
+    load_model_state(os.path.join(modeldir, 'checkpoint.6.08.epoch16.pt'), model)
 
     cuda_condition = torch.cuda.is_available()
     device = torch.device("cuda:0" if cuda_condition else "cpu")
@@ -189,7 +191,16 @@ if __name__ == "__main__":
     parser.add_argument("-l", "--learn-rate",
                         dest="lr",
                         help="Learning rate",
-                        default=0.0001, type=float)
+                        default=0.0005, type=float)
+
+    parser.add_argument("-d", "--dropout",
+                        dest="dropout",
+                        help="Learning rate",
+                        default=0.3, type=float)
+    parser.add_argument("--label-smoothing",
+                        dest="label_smoothing",
+                        help="Label smoothing rate",
+                        default=0.1, type=float)
 
     parser.add_argument("-P", "--path", dest="path",
                         help="sample training file",
@@ -253,5 +264,5 @@ if __name__ == "__main__":
 
     print('OPTIONS ', options)
 
-    go(options)
-    # decode(options)
+    # go(options)
+    decode(options)
