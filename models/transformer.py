@@ -62,7 +62,7 @@ class SelfAttention(nn.Module):
 
 
 class TransformerBlock(nn.Module):
-    def __init__(self, k, heads, ff=4, dropout=0.0):
+    def __init__(self, k, heads, ff=4, dropout=0.01):
         super().__init__()
 
         self.attention = SelfAttention(k, heads=heads)
@@ -88,7 +88,7 @@ class TransformerBlock(nn.Module):
 
 
 class TransformerBlockDecoder(nn.Module):
-    def __init__(self, k, heads, ff=4, dropout=0.1, mask_future_steps=False):
+    def __init__(self, k, heads, ff=4, mask_future_steps=False, dropout=0.01):
         super().__init__()
 
         # Masked self attention
@@ -131,7 +131,7 @@ class TransformerBlockDecoder(nn.Module):
 
 
 class Transformer(nn.Module):
-    def __init__(self, k, heads, depth, seq_length, num_tokens, num_classes, dropout=0.1):
+    def __init__(self, k, heads, depth, seq_length, num_tokens, num_classes, dropout=0.01):
         super().__init__()
 
         self.num_tokens = num_tokens
@@ -178,14 +178,14 @@ class Transformer(nn.Module):
 
 
 class TransformerEncoder(nn.Module):
-    def __init__(self, k, heads, depth, num_emb, max_len):
+    def __init__(self, k, heads, depth, num_emb, max_len, dropout=0.01):
         super().__init__()
         self.max_len = max_len
         self.mbert_embeddings = MBertEmbeddings(num_emb, k)
 
         tblocks = []
         for _ in range(depth):
-            tblocks.append(TransformerBlock(k, heads))
+            tblocks.append(TransformerBlock(k, heads, dropout=dropout))
         self.tblocks = nn.Sequential(*tblocks)
 
     def forward(self, x):
@@ -195,14 +195,14 @@ class TransformerEncoder(nn.Module):
 
 
 class TransformerDecoder(nn.Module):
-    def __init__(self, k, heads, depth, num_emb_target, max_len, mask_future_steps=False):
+    def __init__(self, k, heads, depth, num_emb_target, max_len, mask_future_steps=False, dropout=0.01):
         super().__init__()
         self.bert_emb = MBertEmbeddings(num_emb_target, k)
         self.max_len = max_len
 
         self.tblocks_decoder = nn.ModuleList()
         for _ in range(depth):
-            self.tblocks_decoder.append(TransformerBlockDecoder(k, heads, mask_future_steps))
+            self.tblocks_decoder.append(TransformerBlockDecoder(k, heads, mask_future_steps, dropout=dropout))
 
     def forward(self, x, enc):
         x = self.bert_emb(x)
@@ -224,20 +224,17 @@ class Generator(nn.Module):
 
 
 class TransformerEncoderDecoder(nn.Module):
-    def __init__(self, k, heads, depth, num_emb, num_emb_target, max_len, mask_future_steps=True):
+    def __init__(self, k, heads, depth, num_emb, num_emb_target, max_len, mask_future_steps=True, dropout=0.01):
         super().__init__()
-        self.encoder = TransformerEncoder(k, heads, depth, num_emb, max_len)
-        self.decoder = TransformerDecoder(k, heads, depth, num_emb_target, max_len, mask_future_steps)
+        self.encoder = TransformerEncoder(k, heads, depth, num_emb, max_len, dropout=dropout)
+        self.decoder = TransformerDecoder(k, heads, depth, num_emb_target, max_len, mask_future_steps, dropout=dropout)
         self.generator = Generator(k, num_emb_target)
 
     def forward(self, src_tokens, y=None):
         enc = self.encoder(src_tokens)
-
         if type(y) != type(None):
             tgt_tokens = y
         else:
             tgt_tokens = src_tokens
-
         enc_dec = self.decoder(tgt_tokens, enc)
-
         return self.generator(enc_dec)
