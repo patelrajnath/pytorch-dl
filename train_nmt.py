@@ -53,8 +53,8 @@ def go(arg):
         if p.dim() > 1:
             nn.init.xavier_uniform_(p)
 
-    criterion = LabelSmoothedCrossEntropy(size=vocab_size_tgt, padding_idx=vocab_tgt.pad_index,
-                                          smoothing=arg.label_smoothing)
+    criterion = LabelSmoothedCrossEntropy(tgt_vocab_size=vocab_size_tgt, label_smoothing=arg.label_smoothing,
+                                          ignore_index=vocab_tgt.pad_index)
     optimizer = Adam(params=model.parameters(), lr=arg.lr, betas=(0.9, 0.999), eps=1e-8,
                      weight_decay=0, amsgrad=False)
     lr_schedular = lr_scheduler.LambdaLR(optimizer, lambda i: min(i / (lr_warmup / batch_size), 1.0))
