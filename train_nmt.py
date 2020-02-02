@@ -83,6 +83,7 @@ def go(arg):
             src_tokens, tgt_tokens = data
             decoder_out = model(data[src_tokens], data[tgt_tokens])
             loss = criterion(decoder_out.transpose(1, 2), data[tgt_tokens], device)
+            # loss = criterion(decoder_out.transpose(1, 2), data[tgt_tokens], device)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
