@@ -15,35 +15,48 @@ from torch.utils.data.dataloader import DataLoader
 from torchvision.datasets import FashionMNIST
 import torch.utils.data
 
+from models.utils.fconv_layer_norm import LayerNormConv2d
+
 
 class CNN(nn.Module):
-    def __init__(self, in_channels=1, out_channels=6, kernel_size=5, depth=2):
+    def __init__(self, in_channels=1, out_channels=6, kernel_size=5, depth=2, dropout=0.2):
         super().__init__()
         self.conv1 = nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size)
+        self.norm_conv1 = LayerNormConv2d(out_channels)
         self.conv2 = nn.Conv2d(in_channels=out_channels, out_channels=2 * out_channels, kernel_size=kernel_size)
+        self.norm_conv2 = LayerNormConv2d(2 * out_channels)
 
         # Compute output dimension after convolution/max-pooling (4 * 4 in self.fc1), Oh = (n -f - 2p)/s + 1
         self.fc1 = nn.Linear(2 * out_channels * 4 * 4, 120)
         self.fc2 = nn.Linear(120, 60)
         self.out = nn.Linear(60, 10)
+        self.dropout = nn.Dropout(p=dropout)
+        self.norm = LayerNormConv2d(6)
 
     def forward(self, x):
         x = self.conv1(x)
         x = F.relu(x)
+        x = self.norm_conv1(x)
+        x = self.dropout(x)
         x = F.max_pool2d(x, kernel_size=2, stride=2)
 
         x = self.conv2(x)
         x = F.relu(x)
+        x = self.norm_conv2(x)
+        x = self.dropout(x)
         x = F.max_pool2d(x, kernel_size=2, stride=2)
+        x = self.dropout(x)
 
         # Flatten the tensor for linear layer
         x = x.reshape(-1, 12 * 4 * 4)
 
         x = self.fc1(x)
         x = F.relu(x)
+        x = self.dropout(x)
 
         x = self.fc2(x)
         x = F.relu(x)
+        x = self.dropout(x)
 
         x = self.out(x)
 
