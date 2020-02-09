@@ -73,12 +73,12 @@ valid_data = FashionMNIST(
 )
 
 # image, label = next(iter(train_data))
-train_loader = DataLoader(train_data, batch_size=32, shuffle=True)
-validation_loader = DataLoader(valid_data, batch_size=32)
+train_loader = DataLoader(train_data, batch_size=100, shuffle=True)
+validation_loader = DataLoader(valid_data, batch_size=100)
 cnn = CNN()
 optimizer = Adam(params=cnn.parameters(), lr=0.01)
 
-for i in range(10):
+for i in range(50):
     total_loss = 0
     total_correct = 0.0
     for batch in train_loader:
