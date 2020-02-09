@@ -64,9 +64,10 @@ train_data = FashionMNIST(
 )
 
 # image, label = next(iter(train_data))
-train_loader = DataLoader(train_data, batch_size=10, shuffle=True)
+train_loader = DataLoader(train_data, batch_size=100, shuffle=True)
 cnn = CNN()
 optimizer = Adam(params=cnn.parameters(), lr=0.01)
+
 for i in range(10):
     total_loss = 0
     total_correct = 0
@@ -74,7 +75,7 @@ for i in range(10):
         images, labels = batch
 
         pred = cnn(images)
-        loss = F.nll_loss(pred, labels)
+        loss = F.cross_entropy(pred, labels)
 
         optimizer.zero_grad()
         loss.backward()
