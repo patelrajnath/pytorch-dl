@@ -64,7 +64,7 @@ def go(arg):
     scheduler_warmup = GradualWarmupScheduler(optimizer, multiplier=8, total_epoch=lr_warmup,
                                               after_scheduler=scheduler_cosine)
 
-    cuda_condition = torch.cuda.is_available()
+    cuda_condition = torch.cuda.is_available() and not arg.cpu
     device = torch.device("cuda:0" if cuda_condition else "cpu")
 
     if cuda_condition:
@@ -234,6 +234,10 @@ if __name__ == "__main__":
 
     parser.add_argument("--max-pool", dest="max_pool",
                         help="Use max pooling in the final classification layer.",
+                        action="store_true")
+
+    parser.add_argument("--cpu", dest="cpu",
+                        help="Use cpu for training.",
                         action="store_true")
 
     parser.add_argument("-D", "--dim-model", dest="dim_model",
