@@ -27,6 +27,29 @@ def mask_(matrices, maskval=0.0, mask_diagonal=True):
     matrices[:, indices[0], indices[1]] = maskval
 
 
+def get_masks(slen, lengths, causal):
+    """
+    Generate hidden states mask, and optionally an attention mask.
+    """
+    assert lengths.max().item() <= slen
+    bs = lengths.size(0)
+    alen = torch.arange(slen, dtype=torch.long, device=lengths.device)
+    print(bs, alen)
+    mask = alen < lengths[:, None]
+
+    # attention mask is the same as mask, or triangular inferior attention (causal)
+    if causal:
+        attn_mask = alen[None, None, :].repeat(bs, slen, 1) <= alen[None, :, None]
+    else:
+        attn_mask = mask
+
+    # sanity check
+    assert mask.size() == (bs, slen)
+    assert causal is False or attn_mask.size() == (bs, slen, slen)
+
+    return mask, attn_mask
+
+
 def d(tensor=None):
     """
     Returns a device string either for the best available device,
