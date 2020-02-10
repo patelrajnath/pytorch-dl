@@ -25,7 +25,7 @@ class Bert(nn.Module):
 
         tblocks = []
         for i in range(self.d):
-            tblocks.append(TransformerBlock(k=self.h, heads=heads))
+            tblocks.append(TransformerBlock(emb_dim=self.h, heads=heads))
         self.tblocks = nn.Sequential(*tblocks)
 
     def forward(self, x, segment_label):
