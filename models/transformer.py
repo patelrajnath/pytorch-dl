@@ -20,13 +20,18 @@ class SelfAttention(nn.Module):
     This is basic transformer model
     """
 
-    def __init__(self, k, heads, mask_future_steps=False):
+    def __init__(self, emb_dim, heads, mask_future_steps=False, multihead_shared_emb=False):
         super().__init__()
-        self.k, self.heads, self.mask_future_steps = k, heads, mask_future_steps
-        self.toqueries = nn.Linear(k, k * heads, bias=False)
-        self.tovalue = nn.Linear(k, k * heads, bias=False)
-        self.tokey = nn.Linear(k, k * heads, bias=False)
-        self.unifyheads = nn.Linear(k * heads, k, bias=False)
+        self.emb_dim, self.heads, self.mask_future_steps = emb_dim, heads, mask_future_steps
+        if multihead_shared_emb:
+            self.att_dim = self.emb_dim // self.heads
+        else:
+            self.att_dim = self.emb_dim
+
+        self.toqueries = nn.Linear(self.emb_dim, self.att_dim * heads, bias=False)
+        self.tovalue = nn.Linear(self.emb_dim, self.att_dim * heads, bias=False)
+        self.tokey = nn.Linear(self.emb_dim, self.att_dim * heads, bias=False)
+        self.unifyheads = nn.Linear(self.att_dim * heads, self.emb_dim, bias=False)
 
     def forward(self, x, enc=None):
         b, t, k = x.size()
@@ -37,16 +42,16 @@ class SelfAttention(nn.Module):
             enc = x
 
         h = self.heads
-        query = self.toqueries(x).view(b, t, h, k)
-        key = self.tokey(enc).view(b, t, h, k)
-        value = self.tovalue(enc).view(b, t, h, k)
+        query = self.toqueries(x).view(b, t, h, self.att_dim)
+        key = self.tokey(enc).view(b, t, h, self.att_dim)
+        value = self.tovalue(enc).view(b, t, h, self.att_dim)
 
-        query = query.transpose(1, 2).contiguous().view(b * h, t, k)
-        key = key.transpose(1, 2).contiguous().view(b * h, t, k)
-        value = value.transpose(1, 2).contiguous().view(b * h, t, k)
+        query = query.transpose(1, 2).contiguous().view(b * h, t, self.att_dim)
+        key = key.transpose(1, 2).contiguous().view(b * h, t, self.att_dim)
+        value = value.transpose(1, 2).contiguous().view(b * h, t, self.att_dim)
 
-        query = query / (k ** (1 / 4))
-        key = key / (k ** (1 / 4))
+        query = query / (self.att_dim ** (1 / 4))
+        key = key / (self.att_dim ** (1 / 4))
 
         dot = torch.bmm(query, key.transpose(1, 2))
         if self.mask_future_steps:  # mask out the upper half of the dot matrix, excluding the diagonal
@@ -54,26 +59,26 @@ class SelfAttention(nn.Module):
 
         dot = F.softmax(dot, dim=2)
         # print(torch.sum(dot, dim=2))
-        out = torch.bmm(dot, value).view(b, h, t, k)
-        out = out.transpose(1, 2).contiguous().view(b, t, h * k)
+        out = torch.bmm(dot, value).view(b, h, t, self.att_dim)
+        out = out.transpose(1, 2).contiguous().view(b, t, h * self.att_dim)
         return self.unifyheads(out)
         # print('key:', key.size(), 'value:', value.size(), 'query:', query.size(),
         #       'dot', dot.size(), "out", out.size())
 
 
 class TransformerBlock(nn.Module):
-    def __init__(self, k, heads, ff=4, dropout=0.01):
+    def __init__(self, emb_dim, heads, ff=4, dropout=0.01, multihead_shared_emb=False):
         super().__init__()
 
-        self.attention = SelfAttention(k, heads=heads)
+        self.attention = SelfAttention(emb_dim, heads=heads, multihead_shared_emb=multihead_shared_emb)
 
-        self.norm1 = nn.LayerNorm(k)
-        self.norm2 = nn.LayerNorm(k)
+        self.norm1 = nn.LayerNorm(emb_dim)
+        self.norm2 = nn.LayerNorm(emb_dim)
 
         self.ff = nn.Sequential(
-            nn.Linear(k, ff * k),
+            nn.Linear(emb_dim, ff * emb_dim),
             nn.ReLU(),
-            nn.Linear(ff * k, k))
+            nn.Linear(ff * emb_dim, emb_dim))
 
         self.do = nn.Dropout(dropout)
 
@@ -88,25 +93,26 @@ class TransformerBlock(nn.Module):
 
 
 class TransformerBlockDecoder(nn.Module):
-    def __init__(self, k, heads, ff=4, mask_future_steps=False, dropout=0.01):
+    def __init__(self, emb_dim, heads, ff=4, mask_future_steps=False, dropout=0.01, multihead_shared_emb=False):
         super().__init__()
 
         # Masked self attention
-        self.attention = SelfAttention(k, heads=heads, mask_future_steps=mask_future_steps)
+        self.attention = SelfAttention(emb_dim, heads=heads, mask_future_steps=mask_future_steps,
+                                       multihead_shared_emb=multihead_shared_emb)
 
         # Encoder-decoder self attention
-        self.attention_encoder_decoder = SelfAttention(k, heads=heads)
+        self.attention_encoder_decoder = SelfAttention(emb_dim, heads=heads, multihead_shared_emb=multihead_shared_emb)
 
-        self.norm1 = nn.LayerNorm(k)
-        self.norm2 = nn.LayerNorm(k)
-        self.norm3 = nn.LayerNorm(k)
+        self.norm1 = nn.LayerNorm(emb_dim)
+        self.norm2 = nn.LayerNorm(emb_dim)
+        self.norm3 = nn.LayerNorm(emb_dim)
 
         self.ff = nn.Sequential(
-            nn.Linear(k, ff * k),
+            nn.Linear(emb_dim, ff * emb_dim),
             nn.ReLU(),
-            nn.Linear(ff * k, k))
+            nn.Linear(ff * emb_dim, emb_dim))
 
-        self.linear = nn.Linear(k, k)
+        self.linear = nn.Linear(emb_dim, emb_dim)
 
         self.do = nn.Dropout(dropout)
 
@@ -131,7 +137,7 @@ class TransformerBlockDecoder(nn.Module):
 
 
 class Transformer(nn.Module):
-    def __init__(self, k, heads, depth, seq_length, num_tokens, num_classes, dropout=0.01):
+    def __init__(self, k, heads, depth, seq_length, num_tokens, num_classes, dropout=0.01, multihead_shared_emb=True):
         super().__init__()
 
         self.num_tokens = num_tokens
@@ -142,7 +148,7 @@ class Transformer(nn.Module):
         # heavy lifting
         tblocks = []
         for i in range(depth):
-            tblocks.append(TransformerBlock(k=k, heads=heads))
+            tblocks.append(TransformerBlock(emb_dim=k, heads=heads, multihead_shared_emb=multihead_shared_emb))
         self.tblocks = nn.Sequential(*tblocks)
 
         # Maps the final output sequence to class logits
@@ -178,14 +184,14 @@ class Transformer(nn.Module):
 
 
 class TransformerEncoder(nn.Module):
-    def __init__(self, k, heads, depth, num_emb, max_len, dropout=0.01):
+    def __init__(self, emb_dim, heads, depth, num_emb, max_len, dropout=0.01, multihead_shared_emb=False):
         super().__init__()
         self.max_len = max_len
-        self.mbert_embeddings = MBertEmbeddings(num_emb, k)
+        self.mbert_embeddings = MBertEmbeddings(num_emb, emb_dim)
 
         tblocks = []
         for _ in range(depth):
-            tblocks.append(TransformerBlock(k, heads, dropout=dropout))
+            tblocks.append(TransformerBlock(emb_dim, heads, dropout=dropout, multihead_shared_emb=multihead_shared_emb))
         self.tblocks = nn.Sequential(*tblocks)
 
     def forward(self, x):
@@ -195,14 +201,16 @@ class TransformerEncoder(nn.Module):
 
 
 class TransformerDecoder(nn.Module):
-    def __init__(self, k, heads, depth, num_emb_target, max_len, mask_future_steps=False, dropout=0.01):
+    def __init__(self, emb_dim, heads, depth, num_emb_target, max_len, mask_future_steps=False,
+                 dropout=0.01, multihead_shared_emb=False):
         super().__init__()
-        self.bert_emb = MBertEmbeddings(num_emb_target, k)
+        self.bert_emb = MBertEmbeddings(num_emb_target, emb_dim)
         self.max_len = max_len
 
         self.tblocks_decoder = nn.ModuleList()
         for _ in range(depth):
-            self.tblocks_decoder.append(TransformerBlockDecoder(k, heads, mask_future_steps, dropout=dropout))
+            self.tblocks_decoder.append(TransformerBlockDecoder(emb_dim, heads, mask_future_steps,
+                                                                dropout=dropout, multihead_shared_emb=multihead_shared_emb))
 
     def forward(self, x, enc):
         x = self.bert_emb(x)
@@ -226,8 +234,9 @@ class Generator(nn.Module):
 class TransformerEncoderDecoder(nn.Module):
     def __init__(self, k, heads, depth, num_emb, num_emb_target, max_len, mask_future_steps=True, dropout=0.01):
         super().__init__()
-        self.encoder = TransformerEncoder(k, heads, depth, num_emb, max_len, dropout=dropout)
-        self.decoder = TransformerDecoder(k, heads, depth, num_emb_target, max_len, mask_future_steps, dropout=dropout)
+        self.encoder = TransformerEncoder(k, heads, depth, num_emb, max_len, dropout=dropout, multihead_shared_emb=True)
+        self.decoder = TransformerDecoder(k, heads, depth, num_emb_target, max_len, mask_future_steps,
+                                          dropout=dropout, multihead_shared_emb=True)
         self.generator = Generator(k, num_emb_target)
 
     def forward(self, src_tokens, y=None):
