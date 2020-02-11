@@ -27,7 +27,7 @@ def mask_(matrices, maskval=0.0, mask_diagonal=True):
     matrices[:, indices[0], indices[1]] = maskval
 
 
-def get_masks(slen, lengths, causal):
+def get_masks(slen, lengths, causal=False):
     """
     Generate hidden states mask, and optionally an attention mask.
     """
@@ -115,4 +115,61 @@ def load_model_state(filename, model, data_parallel=True):
         raise Exception('Cannot load model parameters from checkpoint, '
                         'please ensure that the architectures match')
     return state['num_updates']
+
+
+def pad_tensor(vec, pad, dim):
+    """
+    args:
+        vec - tensor to pad
+        pad - the size to pad to
+        dim - dimension to pad
+
+    return:
+        a new tensor padded to 'pad' in dimension 'dim'
+    """
+    pad_size = list(vec.shape)
+    pad_size[dim] = pad - vec.size(dim)
+    return torch.cat([vec, torch.zeros(*pad_size)], dim=dim)
+
+
+class PadCollate(object):
+    """
+    a variant of callate_fn that pads according to the longest sequence in
+    a batch of sequences
+    """
+
+    def __init__(self, dim=0):
+        """
+        args:
+            dim - the dimension to be padded (dimension of time in sequences)
+        """
+        self.dim = dim
+
+    def pad_collate(self, batch):
+        """
+        args:
+            batch - list of (tensor, label)
+
+        reutrn:
+            xs - a tensor of all examples in 'batch' after padding
+            ys - a LongTensor of all labels in batch
+        """
+        # find longest sequence
+        max_len = max(map(lambda x: x["source"].shape[self.dim], batch))
+        print(max_len)
+        print(batch)
+
+        # pad according to max_len
+        batch = map(lambda x, y:
+                    (pad_tensor(x, pad=max_len, dim=self.dim), y), batch)
+        print(batch)
+        exit(0)
+        # stack all
+        xs = torch.stack(map(lambda x: x["source"], batch), dim=0)
+        ys = torch.stack(map(lambda x: x["target"], batch), dim=0)
+        return xs, ys
+
+    def __call__(self, batch):
+        return self.pad_collate(batch)
+
 
