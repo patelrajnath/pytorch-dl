@@ -8,6 +8,7 @@ Date: January 18, 2020
 
 import numpy
 import torch
+from torch import float32
 from torch.nn import functional
 
 from models.utils.model_utils import get_masks
@@ -15,7 +16,7 @@ from models.utils.model_utils import get_masks
 torch.manual_seed(200)
 
 x = torch.rand(2, 3)
-y = torch.Tensor(2, 3)
+y = torch.zeros(2, 3)
 
 z = x + x
 # print(z)
@@ -24,14 +25,14 @@ torch.add(x, x, out=y)
 # print(torch.is_tensor(numpy.random.rand(2, 3)))
 # print(x.matmul(y.transpose(0, 1)))
 
-x = torch.Tensor([1, 2, 3])
+x = torch.tensor([1, 2, 3])
 y = (x != 1).unsqueeze(-2)
 r = torch.unsqueeze(x, 0)       # Size: 1x3
 # print(x.size(), r.size())
 r = torch.unsqueeze(x, 1)
 # print(x.size(), r.size())
 
-x = torch.Tensor([[1, 2], [3, 4]])
+x = torch.tensor([[1, 2], [3, 4]])
 # print(functional.softmax(x, dim=0))
 attn_weights = torch.rand(4, 4, 4, 4)
 
@@ -64,7 +65,9 @@ maskval=float('-inf')
 # x = attn_weights[:, indices[0], indices[1]] = maskval
 # print(attn_weights)
 
-x = torch.Tensor([[1, 2, 4, 0], [3, 4, 0, 0], [1, 2, 23, 45]])
-lenghts = torch.Tensor([3, 2, 4])
-slen, bs = x.size()
-print(get_masks(slen, y, causal=True))
+x = torch.tensor([[1, 2, 4, 0], [3, 4, 0, 0], [1, 2, 23, 45]])
+lenghts = torch.tensor([3, 2, 4])
+bs, slen = x.size()
+print(get_masks(slen, lenghts, causal=False))
+
+

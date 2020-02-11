@@ -34,7 +34,6 @@ def get_masks(slen, lengths, causal):
     assert lengths.max().item() <= slen
     bs = lengths.size(0)
     alen = torch.arange(slen, dtype=torch.long, device=lengths.device)
-    print(bs, alen)
     mask = alen < lengths[:, None]
 
     # attention mask is the same as mask, or triangular inferior attention (causal)
