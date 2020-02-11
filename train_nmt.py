@@ -21,7 +21,7 @@ from torch.optim import Adam, lr_scheduler
 from torch.utils.data import DataLoader
 
 from dataset.vocab import WordVocab
-from models.utils.model_utils import save_state, load_model_state
+from models.utils.model_utils import save_state, load_model_state, get_masks, PadCollate
 from optim.lr_warm_up import GradualWarmupScheduler
 
 
@@ -44,7 +44,8 @@ def go(arg):
     modeldir = "nmt"
     data_set = TranslationDataSet(input_file, arg.source, arg.target, vocab_src, vocab_tgt, max_size)
 
-    data_loader = DataLoader(data_set, batch_size=batch_size, shuffle=True)
+    data_loader = DataLoader(data_set, batch_size=batch_size, shuffle=True,
+                             collate_fn=PadCollate(dim=0))
     vocab_size_src = len(vocab_src.stoi)
     vocab_size_tgt = len(vocab_tgt.stoi)
     model = TransformerEncoderDecoder(k, h, dropout=arg.dropout, depth=depth, num_emb=vocab_size_src,
@@ -85,7 +86,15 @@ def go(arg):
                               total=len(data_loader))
         for i, data in data_iter:
             data = {key: value.to(device) for key, value in data.items()}
-            src_tokens, tgt_tokens = data
+            src_tokens, tgt_tokens, source_lengths, target_lengths = data
+
+            # Crate masks
+            bs, slen = data[src_tokens].size()
+            src_mask, src_mask_att = get_masks(slen, data[src_tokens])
+            bs, tlen = data[tgt_tokens].size()
+            tgt_mask, tgt_mask_att = get_masks(tlen, data[tgt_tokens])
+            print(src_mask, tgt_mask)
+
             decoder_out = model(data[src_tokens], data[tgt_tokens])
             loss = criterion(decoder_out.transpose(1, 2), data[tgt_tokens])
             # loss = criterion(decoder_out.transpose(1, 2), data[tgt_tokens], device)
