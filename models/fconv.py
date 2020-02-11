@@ -6,7 +6,6 @@ Created by raj at 10:20
 Date: February 09, 2020	
 """
 import torch
-from spacy.cli import train
 from torch import nn
 import torch.nn.functional as F
 import torchvision
@@ -28,7 +27,12 @@ class CNN(nn.Module):
         self.conv2 = nn.Conv2d(in_channels=out_channels, out_channels=2 * out_channels, kernel_size=kernel_size)
         self.norm_conv2 = LayerNormConv2d(2 * out_channels)
 
-        # Compute output dimension after convolution/max-pooling (4 * 4 in self.fc1), Oh = (n -f - 2p)/s + 1
+        # Compute output dimension after convolution/max-pooling (4 * 4 in self.fc1), Oh = ((n -f - 2p)/s) + 1
+        # n: input dimension
+        # f: filter size
+        # p: padding size
+        # s: stride size
+
         self.fc1 = nn.Linear(2 * out_channels * 4 * 4, 120)
         self.fc1_norm = nn.LayerNorm(120)
 
