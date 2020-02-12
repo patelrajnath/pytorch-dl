@@ -11,7 +11,7 @@ from torch import nn
 import torch.nn.functional as F
 
 from models.embeddings.mbert_embeddings import MBertEmbeddings
-from models.utils.model_utils import mask_, d, get_masks
+from models.utils.model_utils import d, get_masks
 
 
 class SelfAttention(nn.Module):
@@ -58,18 +58,12 @@ class SelfAttention(nn.Module):
 
         dot = torch.bmm(query, key.transpose(1, 2))
 
-        # This is needed for decoder
-        if self.mask_future_steps:  # mask out the upper half of the dot matrix, excluding the diagonal
-            mask_(dot, maskval=float('-inf'), mask_diagonal=False)
-
         dot_mask = dot.contiguous().view(bs, h, qlen, klen)
 
-        # TODO: the mask for decoder is created based on encoder(kv) memory
-        if klen == qlen:
-            mask_reshape = (bs, 1, qlen, klen) if mask_att.dim() == 3 else (bs, 1, 1, klen)
-            mask_att = (mask_att == 0).view(mask_reshape).expand_as(dot_mask)  # (bs, n_heads, qlen, klen)
-            dot_mask.masked_fill_(mask_att, -float('inf'))
-            dot = dot_mask.contiguous().view(bs*h, qlen, klen)
+        mask_reshape = (bs, 1, qlen, klen) if mask_att.dim() == 3 else (bs, 1, 1, klen)
+        mask_att = (mask_att == 0).view(mask_reshape).expand_as(dot_mask)  # (bs, n_heads, qlen, klen)
+        dot_mask.masked_fill_(mask_att, -float('inf'))
+        dot = dot_mask.contiguous().view(bs*h, qlen, klen)
 
         dot = F.softmax(dot, dim=2)
         # print(torch.sum(dot, dim=2))
@@ -131,14 +125,20 @@ class TransformerBlockDecoder(nn.Module):
 
         self.do = nn.Dropout(dropout)
 
-    def forward(self, tensor, mask_att, memory):
+    def forward(self, tensor, mask_att, memory, source_lengths):
 
         masked_attention = self.attention(tensor, mask_att)
 
         # Add and layer normalize
         tensor = self.norm1(masked_attention + tensor)
 
-        encdec_attention = self.attention_encoder_decoder(tensor, mask_att, memory)
+        # Create mask for encoded memory
+        src_mask = \
+            torch.arange(source_lengths.max(), dtype=torch.long, device=mask_att.device) < source_lengths[:, None]
+        # print(mask_att, src_mask)
+        # exit(0)
+
+        encdec_attention = self.attention_encoder_decoder(tensor, src_mask, memory)
 
         # Add and layer normalize
         tensor = self.norm2(encdec_attention + tensor)
@@ -241,15 +241,15 @@ class TransformerDecoder(nn.Module):
             self.tblocks_decoder.append(TransformerBlockDecoder(emb_dim, heads, mask_future_steps,
                                                                 dropout=dropout, multihead_shared_emb=multihead_shared_emb))
 
-    def forward(self, tokens, lengths, memory):
+    def forward(self, tokens, lengths, memory, source_lengths):
         bs, slen = tokens.size()
-        mask, mask_att = get_masks(slen, lengths)
+        mask, mask_att = get_masks(slen, lengths, causal=True)
 
         tensor = self.bert_emb(tokens)
         tensor *= mask.unsqueeze(-1).to(tensor.dtype)
         inner_state = [tensor]
         for i, layer in enumerate(self.tblocks_decoder):
-            tensor = layer(tensor, mask_att, memory)
+            tensor = layer(tensor, mask_att, memory, source_lengths)
             tensor *= mask.unsqueeze(-1).to(tensor.dtype)
             inner_state.append(tokens)
         return tensor
@@ -282,5 +282,5 @@ class TransformerEncoderDecoder(nn.Module):
             tgt_tokens = src_tokens
             target_lengths = source_lengths
 
-        enc_dec = self.decoder(tgt_tokens, target_lengths, enc)
+        enc_dec = self.decoder(tgt_tokens, target_lengths, enc, source_lengths)
         return self.generator(enc_dec)
