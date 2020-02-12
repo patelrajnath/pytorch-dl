@@ -160,21 +160,19 @@ def decode(arg):
                           total=len(data_loader))
 
     def greedy_decode(model, src_tokens, source_lengths, tgt_tokens, target_lengths, start_symbol):
-        prob = model(src_tokens, source_lengths, tgt_tokens, target_lengths)
-        print(prob.shape)
-        return torch.argmax(prob, dim=2)
-
-        # ys = [start_symbol]
-        # ys = torch.tensor(ys).unsqueeze(0)
-        # ys = ys.to(device)
-        # for i in range(100):
-        #     out = model.decoder(ys, torch.tensor([i]), memory, lengths)
-        #     prob = model.generator(out[:, -1])
-        #     _, next_word = torch.max(prob, dim=1)
-        #     print(next_word)
-        #     ys = torch.cat((ys, next_word.unsqueeze(0)), dim=1)
-        #     print(ys)
-        # return ys
+        # prob = model(src_tokens, source_lengths, tgt_tokens, target_lengths)
+        # print(prob.shape)
+        # return torch.argmax(prob, dim=2)
+        memory = model.encoder(src_tokens, source_lengths)
+        ys = torch.ones(1, 1).fill_(start_symbol).type_as(src_tokens.data)
+        for i in range(10):
+            out = model.decoder(ys, torch.tensor([i]), memory, source_lengths)
+            prob = model.generator(out[:, -1])
+            _, next_word = torch.max(prob, dim=1)
+            next_word = next_word.data[0]
+            ys = torch.cat([ys,
+                            torch.ones(1, 1).type_as(src_tokens.data).fill_(next_word)], dim=1)
+        return ys
 
     with torch.no_grad():
         for i, data in data_iter:
