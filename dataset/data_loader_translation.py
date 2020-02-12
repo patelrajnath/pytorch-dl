@@ -67,8 +67,6 @@ class TranslationDataSet(Dataset):
         output = {
             "source": src_tokens,
             "target": tgt_tokens,
-            "source_length": src_tokens_len,
-            "target_length": tgt_tokens_len,
         }
 
         return {key: torch.tensor(value) for key, value in output.items()}
