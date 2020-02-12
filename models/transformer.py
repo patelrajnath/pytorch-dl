@@ -35,20 +35,20 @@ class SelfAttention(nn.Module):
 
     def forward(self, x, enc=None):
         b, t, k = x.size()
-
         if type(enc) != type(None):
             enc = enc
         else:
             enc = x
-
         h = self.heads
+        enc_b, enc_t, enc_k = enc.size()
+
         query = self.toqueries(x).view(b, t, h, self.att_dim)
-        key = self.tokey(enc).view(b, t, h, self.att_dim)
-        value = self.tovalue(enc).view(b, t, h, self.att_dim)
+        key = self.tokey(enc).view(enc_b, enc_t, h, self.att_dim)
+        value = self.tovalue(enc).view(enc_b, enc_t, h, self.att_dim)
 
         query = query.transpose(1, 2).contiguous().view(b * h, t, self.att_dim)
-        key = key.transpose(1, 2).contiguous().view(b * h, t, self.att_dim)
-        value = value.transpose(1, 2).contiguous().view(b * h, t, self.att_dim)
+        key = key.transpose(1, 2).contiguous().view(enc_b * h, enc_t, self.att_dim)
+        value = value.transpose(1, 2).contiguous().view(enc_b * h, enc_t, self.att_dim)
 
         query = query / (self.att_dim ** (1 / 4))
         key = key / (self.att_dim ** (1 / 4))
