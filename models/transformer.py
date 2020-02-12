@@ -10,7 +10,6 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-from models.embeddings.bert_embeddings import BertEmbeddings
 from models.embeddings.mbert_embeddings import MBertEmbeddings
 from models.utils.model_utils import mask_, d, get_masks
 
@@ -38,10 +37,10 @@ class SelfAttention(nn.Module):
         bs, qlen, dim = tensor.size()
         if kv is not None:
             kv = kv
-            klen = qlen
+            klen = kv.size(1)
         else:
             kv = tensor
-            klen = kv.size(1)
+            klen = qlen
 
         h = self.heads
         kv_b, kv_t, kv_k = kv.size()
@@ -63,10 +62,14 @@ class SelfAttention(nn.Module):
         if self.mask_future_steps:  # mask out the upper half of the dot matrix, excluding the diagonal
             mask_(dot, maskval=float('-inf'), mask_diagonal=False)
 
-        mask_reshape = (bs, 1, qlen, klen) if mask_att.dim() == 3 else (bs, 1, 1, klen)
-        print(mask_reshape)
-        # mask_att = (mask_att == 0).view(mask_reshape).expand_as(dot)  # (bs, n_heads, qlen, klen)
-        # dot.masked_fill_(mask_att, -float('inf'))
+        dot_mask = dot.contiguous().view(bs, h, qlen, klen)
+
+        # TODO: the mask for decoder is created based on encoder(kv) memory
+        if klen == qlen:
+            mask_reshape = (bs, 1, qlen, klen) if mask_att.dim() == 3 else (bs, 1, 1, klen)
+            mask_att = (mask_att == 0).view(mask_reshape).expand_as(dot_mask)  # (bs, n_heads, qlen, klen)
+            dot_mask.masked_fill_(mask_att, -float('inf'))
+            dot = dot_mask.contiguous().view(bs*h, qlen, klen)
 
         dot = F.softmax(dot, dim=2)
         # print(torch.sum(dot, dim=2))
