@@ -118,6 +118,7 @@ def go(arg):
             save_state(os.path.join(modeldir, 'checkpoints_best.pt'), model, criterion, optimizer, epoch)
             previous_best = loss_average
 
+
 def decode(arg):
     vocab_src = WordVocab.load_vocab("sample-data/{}.pkl".format(arg.source))
     vocab_tgt = WordVocab.load_vocab("sample-data/{}.pkl".format(arg.target))
@@ -131,7 +132,8 @@ def decode(arg):
     input_file = arg.path
     data_set = TranslationDataSet(input_file, arg.source, arg.target, vocab_src, vocab_tgt, max_size)
 
-    data_loader = DataLoader(data_set, batch_size=batch_size, shuffle=False)
+    data_loader = DataLoader(data_set, batch_size=batch_size, shuffle=False,
+                             collate_fn=my_collate)
     vocab_size_src = len(vocab_src.stoi)
     vocab_size_tgt = len(vocab_tgt.stoi)
 
@@ -157,27 +159,29 @@ def decode(arg):
                           desc="Decoding",
                           total=len(data_loader))
 
-    def greedy_decode(model, src, max_len, start_symbol):
-        print(src)
-        memory = model.encoder(src)
-        ys = [start_symbol]
-        padding = [vocab_tgt.pad_index for _ in range(max_len - len(ys))]
-        ys.extend(padding)
-        ys = torch.tensor(ys).unsqueeze(0)
-        ys = ys.to(device)
-        for i in range(max_len - 1):
-            out = model.decoder(ys, memory)
-            prob = model.generator(out[:, -1])
-            _, next_word = torch.max(prob, dim=1)
-            ys[0, i+1] = next_word
-        return ys
+    def greedy_decode(model, src_tokens, source_lengths, tgt_tokens, target_lengths, start_symbol):
+        prob = model(src_tokens, source_lengths, tgt_tokens, target_lengths)
+        print(prob.shape)
+        return torch.argmax(prob, dim=2)
+
+        # ys = [start_symbol]
+        # ys = torch.tensor(ys).unsqueeze(0)
+        # ys = ys.to(device)
+        # for i in range(100):
+        #     out = model.decoder(ys, torch.tensor([i]), memory, lengths)
+        #     prob = model.generator(out[:, -1])
+        #     _, next_word = torch.max(prob, dim=1)
+        #     print(next_word)
+        #     ys = torch.cat((ys, next_word.unsqueeze(0)), dim=1)
+        #     print(ys)
+        # return ys
 
     with torch.no_grad():
         for i, data in data_iter:
-            data = {key: value.to(device) for key, value in data.items()}
-            src_tokens, tgt_tokens = data
-            out = greedy_decode(model, data[src_tokens], max_len=80, start_symbol=vocab_tgt.sos_index)
-            print(out)
+            data = [value.to(device) for value in data]
+            src_tokens, tgt_tokens, source_lengths, target_lengths = data
+            out = greedy_decode(model, src_tokens, source_lengths, tgt_tokens, target_lengths,
+                                start_symbol=vocab_tgt.sos_index)
             print("Translation:", end="\t")
             for i in range(1, out.size(1)):
                 sym = vocab_tgt.itos[out[0, i]]
@@ -185,8 +189,8 @@ def decode(arg):
                 print(sym, end=" ")
             print()
             print("Target:", end="\t")
-            for i in range(1, data[tgt_tokens].size(1)):
-                sym = vocab_tgt.itos[data[tgt_tokens][0, i]]
+            for i in range(1, tgt_tokens.size(1)):
+                sym = vocab_tgt.itos[tgt_tokens[0, i]]
                 if sym == "<pad>": break
                 print(sym, end=" ")
             print()
@@ -286,5 +290,5 @@ if __name__ == "__main__":
 
     print('OPTIONS ', options)
 
-    go(options)
-    # decode(options)
+    # go(options)
+    decode(options)
