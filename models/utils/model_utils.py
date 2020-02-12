@@ -10,6 +10,7 @@ import os
 import traceback
 
 import torch
+from torch.nn.utils.rnn import pack_sequence, pad_sequence
 from torch.serialization import default_restore_location
 
 
@@ -117,59 +118,16 @@ def load_model_state(filename, model, data_parallel=True):
     return state['num_updates']
 
 
-def pad_tensor(vec, pad, dim):
-    """
-    args:
-        vec - tensor to pad
-        pad - the size to pad to
-        dim - dimension to pad
+def my_collate(batch):
+    # batch contains a list of dict of structure [{"source": source, "target": target}]
 
-    return:
-        a new tensor padded to 'pad' in dimension 'dim'
-    """
-    pad_size = list(vec.shape)
-    pad_size[dim] = pad - vec.size(dim)
-    return torch.cat([vec, torch.zeros(*pad_size)], dim=dim)
+    lengths_source = torch.tensor([t["source"].shape[0] for t in batch])
+    lengths_target = torch.tensor([t["target"].shape[0] for t in batch])
 
+    source = [item["source"] for item in batch]
+    source = pad_sequence(source).transpose(0, 1)
 
-class PadCollate(object):
-    """
-    a variant of callate_fn that pads according to the longest sequence in
-    a batch of sequences
-    """
+    targets = [item["target"] for item in batch]
+    targets = pad_sequence(targets).transpose(0, 1)
 
-    def __init__(self, dim=0):
-        """
-        args:
-            dim - the dimension to be padded (dimension of time in sequences)
-        """
-        self.dim = dim
-
-    def pad_collate(self, batch):
-        """
-        args:
-            batch - list of (tensor, label)
-
-        reutrn:
-            xs - a tensor of all examples in 'batch' after padding
-            ys - a LongTensor of all labels in batch
-        """
-        # find longest sequence
-        max_len = max(map(lambda x: x["source"].shape[self.dim], batch))
-        print(max_len)
-        print(batch)
-
-        # pad according to max_len
-        batch = map(lambda x, y:
-                    (pad_tensor(x, pad=max_len, dim=self.dim), y), batch)
-        print(batch)
-        exit(0)
-        # stack all
-        xs = torch.stack(map(lambda x: x["source"], batch), dim=0)
-        ys = torch.stack(map(lambda x: x["target"], batch), dim=0)
-        return xs, ys
-
-    def __call__(self, batch):
-        return self.pad_collate(batch)
-
-
+    return source, targets, lengths_source, lengths_target
