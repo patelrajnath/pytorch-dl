@@ -88,13 +88,7 @@ def go(arg):
             data = [value.to(device) for value in data]
             src_tokens, tgt_tokens, source_lengths, target_lengths = data
 
-            # Create masks
-            bs, slen = src_tokens.size()
-            src_mask, src_mask_att = get_masks(slen, source_lengths)
-            bs, tlen = tgt_tokens.size()
-            tgt_mask, tgt_mask_att = get_masks(tlen, target_lengths)
-
-            decoder_out = model(src_tokens, tgt_tokens)
+            decoder_out = model(src_tokens, source_lengths, tgt_tokens, target_lengths)
             loss = criterion(decoder_out.transpose(1, 2), tgt_tokens)
             # loss = criterion(decoder_out.transpose(1, 2), data[tgt_tokens], device)
             optimizer.zero_grad()
