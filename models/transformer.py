@@ -12,7 +12,7 @@ import torch.nn.functional as F
 
 from models.embeddings.bert_embeddings import BertEmbeddings
 from models.embeddings.mbert_embeddings import MBertEmbeddings
-from models.utils.model_utils import mask_, d
+from models.utils.model_utils import mask_, d, get_masks
 
 
 class SelfAttention(nn.Module):
@@ -24,43 +24,54 @@ class SelfAttention(nn.Module):
         super().__init__()
         self.emb_dim, self.heads, self.mask_future_steps = emb_dim, heads, mask_future_steps
         if multihead_shared_emb:
-            self.att_dim = self.emb_dim // self.heads
+            self.dim_per_head = self.emb_dim // self.heads
         else:
-            self.att_dim = self.emb_dim
+            self.dim_per_head = self.emb_dim
 
-        self.toqueries = nn.Linear(self.emb_dim, self.att_dim * heads, bias=False)
-        self.tovalue = nn.Linear(self.emb_dim, self.att_dim * heads, bias=False)
-        self.tokey = nn.Linear(self.emb_dim, self.att_dim * heads, bias=False)
-        self.unifyheads = nn.Linear(self.att_dim * heads, self.emb_dim, bias=False)
+        self.toqueries = nn.Linear(self.emb_dim, self.dim_per_head * heads, bias=False)
+        self.tovalue = nn.Linear(self.emb_dim, self.dim_per_head * heads, bias=False)
+        self.tokey = nn.Linear(self.emb_dim, self.dim_per_head * heads, bias=False)
+        self.unifyheads = nn.Linear(self.dim_per_head * heads, self.emb_dim, bias=False)
 
-    def forward(self, x, enc=None):
-        b, t, k = x.size()
-        if type(enc) != type(None):
-            enc = enc
+    def forward(self, tensor, mask_att, kv=None):
+        b, t, k = tensor.size()
+        bs, qlen, dim = tensor.size()
+        if kv is not None:
+            kv = kv
+            klen = qlen
         else:
-            enc = x
+            kv = tensor
+            klen = kv.size(1)
+
         h = self.heads
-        enc_b, enc_t, enc_k = enc.size()
+        kv_b, kv_t, kv_k = kv.size()
 
-        query = self.toqueries(x).view(b, t, h, self.att_dim)
-        key = self.tokey(enc).view(enc_b, enc_t, h, self.att_dim)
-        value = self.tovalue(enc).view(enc_b, enc_t, h, self.att_dim)
+        query = self.toqueries(tensor).view(b, t, h, self.dim_per_head)
+        key = self.tokey(kv).view(kv_b, kv_t, h, self.dim_per_head)
+        value = self.tovalue(kv).view(kv_b, kv_t, h, self.dim_per_head)
 
-        query = query.transpose(1, 2).contiguous().view(b * h, t, self.att_dim)
-        key = key.transpose(1, 2).contiguous().view(enc_b * h, enc_t, self.att_dim)
-        value = value.transpose(1, 2).contiguous().view(enc_b * h, enc_t, self.att_dim)
+        query = query.transpose(1, 2).contiguous().view(b * h, t, self.dim_per_head)
+        key = key.transpose(1, 2).contiguous().view(kv_b * h, kv_t, self.dim_per_head)
+        value = value.transpose(1, 2).contiguous().view(kv_b * h, kv_t, self.dim_per_head)
 
-        query = query / (self.att_dim ** (1 / 4))
-        key = key / (self.att_dim ** (1 / 4))
+        query = query / (self.dim_per_head ** (1 / 4))
+        key = key / (self.dim_per_head ** (1 / 4))
 
         dot = torch.bmm(query, key.transpose(1, 2))
+
+        # This is needed for decoder
         if self.mask_future_steps:  # mask out the upper half of the dot matrix, excluding the diagonal
             mask_(dot, maskval=float('-inf'), mask_diagonal=False)
 
+        mask_reshape = (bs, 1, qlen, klen) if mask_att.dim() == 3 else (bs, 1, 1, klen)
+        print(mask_reshape)
+        # mask_att = (mask_att == 0).view(mask_reshape).expand_as(dot)  # (bs, n_heads, qlen, klen)
+        # dot.masked_fill_(mask_att, -float('inf'))
+
         dot = F.softmax(dot, dim=2)
         # print(torch.sum(dot, dim=2))
-        out = torch.bmm(dot, value).view(b, h, t, self.att_dim)
-        out = out.transpose(1, 2).contiguous().view(b, t, h * self.att_dim)
+        out = torch.bmm(dot, value).view(b, h, t, self.dim_per_head)
+        out = out.transpose(1, 2).contiguous().view(b, t, h * self.dim_per_head)
         return self.unifyheads(out)
         # print('key:', key.size(), 'value:', value.size(), 'query:', query.size(),
         #       'dot', dot.size(), "out", out.size())
@@ -82,14 +93,15 @@ class TransformerBlock(nn.Module):
 
         self.do = nn.Dropout(dropout)
 
-    def forward(self, x):
-        attended = self.attention(x)
-        x = self.norm1(attended + x)
-        x = self.do(x)
-        ff_out = self.ff(x)
-        x = self.norm2(ff_out + x)
-        x = self.do(x)
-        return x
+    def forward(self, tensor, mask_att):
+        attended = self.attention(tensor, mask_att)
+        tensor = self.norm1(attended + tensor)
+        tensor = self.do(tensor)
+        ff_out = self.ff(tensor)
+        tensor = self.norm2(ff_out + tensor)
+        tensor = self.do(tensor)
+
+        return tensor
 
 
 class TransformerBlockDecoder(nn.Module):
@@ -116,24 +128,26 @@ class TransformerBlockDecoder(nn.Module):
 
         self.do = nn.Dropout(dropout)
 
-    def forward(self, x, enc):
-        masked_attention = self.attention(x)
-        # Add and layer normalize
-        x = self.norm1(masked_attention + x)
+    def forward(self, tensor, mask_att, memory):
 
-        encdec_attention = self.attention_encoder_decoder(x, enc)
+        masked_attention = self.attention(tensor, mask_att)
 
         # Add and layer normalize
-        x = self.norm2(encdec_attention + x)
-        x = self.do(x)
+        tensor = self.norm1(masked_attention + tensor)
+
+        encdec_attention = self.attention_encoder_decoder(tensor, mask_att, memory)
+
+        # Add and layer normalize
+        tensor = self.norm2(encdec_attention + tensor)
+        tensor = self.do(tensor)
 
         # Run feed-forward
-        ff_out = self.ff(x)
+        ff_out = self.ff(tensor)
 
         # Add and layer normalize
-        x = self.norm3(ff_out + x)
-        x = self.do(x)
-        return x
+        tensor = self.norm3(ff_out + tensor)
+        tensor = self.do(tensor)
+        return tensor
 
 
 class Transformer(nn.Module):
@@ -194,10 +208,22 @@ class TransformerEncoder(nn.Module):
             tblocks.append(TransformerBlock(emb_dim, heads, dropout=dropout, multihead_shared_emb=multihead_shared_emb))
         self.tblocks = nn.Sequential(*tblocks)
 
-    def forward(self, x):
-        bert_emb = self.mbert_embeddings(x)
-        encoding = self.tblocks(bert_emb)
-        return encoding
+    def forward(self, tokens, lengths):
+        # Create masks
+        bs, slen = tokens.size()
+        mask, mask_att = get_masks(slen, lengths)
+
+        tensor = self.mbert_embeddings(tokens)
+
+        tensor *= mask.unsqueeze(-1).to(tensor.dtype)
+        inner_state = [tensor]
+
+        for i, layer in enumerate(self.tblocks):
+            tensor = layer(tensor, mask_att)
+            inner_state.append(tensor)
+            tensor *= mask.unsqueeze(-1).to(tensor.dtype)
+
+        return tensor
 
 
 class TransformerDecoder(nn.Module):
@@ -212,13 +238,18 @@ class TransformerDecoder(nn.Module):
             self.tblocks_decoder.append(TransformerBlockDecoder(emb_dim, heads, mask_future_steps,
                                                                 dropout=dropout, multihead_shared_emb=multihead_shared_emb))
 
-    def forward(self, x, enc):
-        x = self.bert_emb(x)
-        inner_state = [x]
+    def forward(self, tokens, lengths, memory):
+        bs, slen = tokens.size()
+        mask, mask_att = get_masks(slen, lengths)
+
+        tensor = self.bert_emb(tokens)
+        tensor *= mask.unsqueeze(-1).to(tensor.dtype)
+        inner_state = [tensor]
         for i, layer in enumerate(self.tblocks_decoder):
-            x = layer(x, enc)
-            inner_state.append(x)
-        return x
+            tensor = layer(tensor, mask_att, memory)
+            tensor *= mask.unsqueeze(-1).to(tensor.dtype)
+            inner_state.append(tokens)
+        return tensor
 
 
 class Generator(nn.Module):
@@ -239,11 +270,14 @@ class TransformerEncoderDecoder(nn.Module):
                                           dropout=dropout, multihead_shared_emb=True)
         self.generator = Generator(k, num_emb_target)
 
-    def forward(self, src_tokens, y=None):
-        enc = self.encoder(src_tokens)
-        if type(y) != type(None):
-            tgt_tokens = y
+    def forward(self, src_tokens, source_lengths, tgt_tokens=None, target_lengths=None):
+        enc = self.encoder(src_tokens, source_lengths)
+        if tgt_tokens is not None:
+            tgt_tokens = tgt_tokens
+            target_lengths = target_lengths
         else:
             tgt_tokens = src_tokens
-        enc_dec = self.decoder(tgt_tokens, enc)
+            target_lengths = source_lengths
+
+        enc_dec = self.decoder(tgt_tokens, target_lengths, enc)
         return self.generator(enc_dec)
