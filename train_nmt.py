@@ -5,7 +5,7 @@ pytorch-dl
 Created by raj at 11:12 
 Date: January 26, 2020	
 """
-
+import math
 import os
 from argparse import ArgumentParser
 from math import inf
@@ -13,7 +13,7 @@ from math import inf
 from criterion.label_smoothed_cross_entropy import LabelSmoothedCrossEntropy
 from dataset.data_loader_translation import TranslationDataSet
 from models.transformer import TransformerEncoderDecoder
-
+import torch.nn.functional as F
 import torch
 import tqdm
 from torch import nn
@@ -25,7 +25,7 @@ from models.utils.model_utils import save_state, load_model_state, get_masks, my
 from optim.lr_warm_up import GradualWarmupScheduler
 
 
-def go(arg):
+def train(arg):
     input_file = arg.path
     for lang in (arg.source, arg.target):
         with open(input_file + '.' + lang) as f:
@@ -42,7 +42,8 @@ def go(arg):
     depth = arg.depth
     max_size=arg.max_length
     modeldir = "nmt"
-    data_set = TranslationDataSet(input_file, arg.source, arg.target, vocab_src, vocab_tgt, max_size)
+    data_set = TranslationDataSet(input_file, arg.source, arg.target, vocab_src, vocab_tgt, max_size,
+                                  add_sos_and_eos=True)
 
     data_loader = DataLoader(data_set, batch_size=batch_size, shuffle=False,
                              collate_fn=my_collate)
@@ -59,7 +60,7 @@ def go(arg):
 
     # criterion = LabelSmoothedCrossEntropy(tgt_vocab_size=vocab_size_tgt, label_smoothing=arg.label_smoothing,
     #                                       ignore_index=vocab_tgt.pad_index)
-    criterion = nn.NLLLoss(ignore_index=0)
+    criterion = nn.CrossEntropyLoss()
     optimizer = Adam(params=model.parameters(), lr=arg.lr, betas=(0.9, 0.999), eps=1e-8)
     scheduler_cosine = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, arg.num_epochs)
     scheduler_warmup = GradualWarmupScheduler(optimizer, multiplier=8, total_epoch=lr_warmup,
@@ -79,7 +80,7 @@ def go(arg):
         return round(x/y, 2)
     previous_best = inf
     for epoch in range(1, arg.num_epochs):
-        avg_loss = 0
+        total_loss = 0
         # Setting the tqdm progress bar
         data_iter = tqdm.tqdm(enumerate(data_loader),
                               desc="Running epoch: {}".format(epoch),
@@ -88,30 +89,31 @@ def go(arg):
             data = [value.to(device) for value in data]
             src_tokens, tgt_tokens, source_lengths, target_lengths = data
 
-            decoder_out = model(src_tokens, source_lengths, tgt_tokens, target_lengths)
-            loss = criterion(decoder_out.transpose(1, 2), tgt_tokens)
-            # loss = criterion(decoder_out.transpose(1, 2), data[tgt_tokens], device)
+            _, logit = model(src_tokens, source_lengths, tgt_tokens, target_lengths)
+            # loss = F.cross_entropy(decoder_out.transpose(1, 2), tgt_tokens, reduction='mean')
+            loss = criterion(logit.transpose(1, 2), tgt_tokens)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             scheduler_warmup.step()
-            avg_loss += loss.item()
+            total_loss += loss.item()
             if i % arg.wait == 0 and i > 0:
                 try:
                     os.makedirs(modeldir)
                 except OSError:
                     pass
-                checkpoint = "checkpoint.{}.".format(truncate_division(avg_loss, i)) + 'epoch' + str(epoch) + ".pt"
+                checkpoint = "checkpoint.{}.".format(truncate_division(total_loss, i)) + 'epoch' + str(epoch) + ".pt"
                 save_state(os.path.join(modeldir, checkpoint), model, criterion, optimizer, epoch)
                 print("Learning-rate: ", scheduler_warmup.get_lr()[0])
         try:
             os.makedirs(modeldir)
         except OSError:
             pass
-        loss_average = truncate_division(avg_loss, len(data_iter))
+        loss_average = truncate_division(total_loss, len(data_iter))
         checkpoint = "checkpoint.{}.".format(loss_average) + 'epoch' + str(epoch) + ".pt"
         save_state(os.path.join(modeldir, checkpoint), model, criterion, optimizer, epoch)
-        print('Average loss: {}'.format(avg_loss / len(data_iter)))
+        print('Average loss: {}'.format(total_loss / len(data_iter)))
+        print('PPL: {}'.format(math.exp(total_loss / len(data_iter))))
         print("Learning-rate: ", scheduler_warmup.get_lr()[0])
 
         if previous_best > loss_average :
@@ -130,7 +132,8 @@ def decode(arg):
     max_size = arg.max_length
     modeldir = "nmt"
     input_file = arg.path
-    data_set = TranslationDataSet(input_file, arg.source, arg.target, vocab_src, vocab_tgt, max_size)
+    data_set = TranslationDataSet(input_file, arg.source, arg.target, vocab_src, vocab_tgt, max_size,
+                                  add_sos_and_eos=True)
 
     data_loader = DataLoader(data_set, batch_size=batch_size, shuffle=False,
                              collate_fn=my_collate)
@@ -145,9 +148,7 @@ def decode(arg):
         if p.dim() > 1:
             nn.init.xavier_uniform_(p)
 
-    load_model_state(os.path.join(modeldir, 'checkpoints_best.pt'), model,
-                     data_parallel=False)
-
+    load_model_state(os.path.join(modeldir, 'checkpoints_best.pt'), model, data_parallel=False)
     cuda_condition = torch.cuda.is_available()
     device = torch.device("cuda:0" if cuda_condition else "cpu")
 
@@ -160,18 +161,22 @@ def decode(arg):
                           total=len(data_loader))
 
     def greedy_decode(model, src_tokens, source_lengths, tgt_tokens, target_lengths, start_symbol):
-        # prob = model(src_tokens, source_lengths, tgt_tokens, target_lengths)
+        # prob, _ = model(src_tokens, source_lengths, tgt_tokens, target_lengths)
         # print(prob.shape)
         # return torch.argmax(prob, dim=2)
         memory = model.encoder(src_tokens, source_lengths)
         ys = torch.ones(1, 1).fill_(start_symbol).type_as(src_tokens.data)
+        print(ys)
         for i in range(10):
             out = model.decoder(ys, torch.tensor([i]), memory, source_lengths)
-            prob = model.generator(out[:, -1])
-            _, next_word = torch.max(prob, dim=1)
+            prob, logit = model.generator(out[:, -1])
+            print(prob.shape, logit.shape)
+            x, next_word = torch.max(prob, dim=1)
+            print(x, next_word)
             next_word = next_word.data[0]
             ys = torch.cat([ys,
                             torch.ones(1, 1).type_as(src_tokens.data).fill_(next_word)], dim=1)
+            print(ys)
         return ys
 
     with torch.no_grad():
@@ -181,13 +186,13 @@ def decode(arg):
             out = greedy_decode(model, src_tokens, source_lengths, tgt_tokens, target_lengths,
                                 start_symbol=vocab_tgt.sos_index)
             print("Translation:", end="\t")
-            for i in range(1, out.size(1)):
+            for i in range(0, out.size(1)):
                 sym = vocab_tgt.itos[out[0, i]]
                 if sym == "<pad>": break
                 print(sym, end=" ")
             print()
             print("Target:", end="\t")
-            for i in range(1, tgt_tokens.size(1)):
+            for i in range(0, tgt_tokens.size(1)):
                 sym = vocab_tgt.itos[tgt_tokens[0, i]]
                 if sym == "<pad>": break
                 print(sym, end=" ")
@@ -288,5 +293,5 @@ if __name__ == "__main__":
 
     print('OPTIONS ', options)
 
-    # go(options)
+    # train(options)
     decode(options)
