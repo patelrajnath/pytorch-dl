@@ -56,14 +56,6 @@ class TranslationDataSet(Dataset):
             src_tokens = src_tokens[:self.max_size]
             tgt_tokens = tgt_tokens[:self.max_size]
 
-        src_tokens_len = len(src_tokens)
-        tgt_tokens_len = len(tgt_tokens)
-
-        # padding = [self.vocab_src.pad_index for _ in range(self.max_size - len(src_tokens))]
-        # src_tokens.extend(padding)
-        # padding = [self.vocab_tgt.pad_index for _ in range(self.max_size - len(tgt_tokens))]
-        # tgt_tokens.extend(padding)
-
         output = {
             "source": src_tokens,
             "target": tgt_tokens,
