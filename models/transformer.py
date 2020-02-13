@@ -262,7 +262,7 @@ class Generator(nn.Module):
 
     def forward(self, enc_dec):
         ff_out = self.ff(enc_dec)
-        return F.log_softmax(ff_out, dim=-1)
+        return F.log_softmax(ff_out, dim=-1), ff_out
 
 
 class TransformerEncoderDecoder(nn.Module):
@@ -273,7 +273,7 @@ class TransformerEncoderDecoder(nn.Module):
                                           dropout=dropout, multihead_shared_emb=True)
         self.generator = Generator(k, num_emb_target)
 
-    def forward(self, src_tokens, source_lengths, tgt_tokens=None, target_lengths=None):
+    def forward(self, src_tokens, source_lengths, tgt_tokens=None, target_lengths=None, predict=False):
         enc = self.encoder(src_tokens, source_lengths)
         if tgt_tokens is not None:
             tgt_tokens = tgt_tokens
@@ -281,6 +281,5 @@ class TransformerEncoderDecoder(nn.Module):
         else:
             tgt_tokens = src_tokens
             target_lengths = source_lengths
-
         enc_dec = self.decoder(tgt_tokens, target_lengths, enc, source_lengths)
         return self.generator(enc_dec)
