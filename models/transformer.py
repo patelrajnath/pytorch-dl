@@ -243,6 +243,9 @@ class TransformerDecoder(nn.Module):
 
     def forward(self, tokens, lengths, memory, source_lengths):
         bs, slen = tokens.size()
+
+        # TODO: Move mask creation in EncoderDecoder module and make the mask application if provided as at decoding
+        #  time both mask and att_mask should not be applied in both encoder and decoder
         mask, mask_att = get_masks(slen, lengths, causal=True)
 
         tensor = self.bert_emb(tokens)
