@@ -162,18 +162,20 @@ def decode(arg):
                           total=len(data_loader))
 
     def greedy_decode(model, src_tokens, source_lengths, tgt_tokens, target_lengths, start_symbol):
-        prob, _ = model(src_tokens, source_lengths, tgt_tokens, target_lengths)
-        print(prob.shape)
-        return torch.argmax(prob, dim=2)
+        # prob, _ = model(src_tokens, source_lengths, tgt_tokens, target_lengths)
+        # print(prob.shape)
+        # return torch.argmax(prob, dim=2)
         memory = model.encoder(src_tokens, source_lengths)
         ys = torch.ones(1, 1).fill_(start_symbol).type_as(src_tokens.data)
         print(ys)
-        for i in range(10):
-            out = model.decoder(ys, torch.tensor([i]), memory, source_lengths)
+        for i in range(100):
+            out = model.decoder(ys, torch.tensor([i+1]), memory, source_lengths)
             prob, logit = model.generator(out[:, -1])
             print(prob.shape, logit.shape)
-            x, next_word = torch.max(prob, dim=1)
-            print(x, next_word)
+            # x, next_word = torch.max(prob, dim=1)
+            print(torch.topk(prob, 1).shape)
+            next_word = torch.topk(prob, 1)[1].squeeze(1)
+            print(next_word)
             next_word = next_word.data[0]
             ys = torch.cat([ys,
                             torch.ones(1, 1).type_as(src_tokens.data).fill_(next_word)], dim=1)
@@ -294,5 +296,5 @@ if __name__ == "__main__":
 
     print('OPTIONS ', options)
 
-    train(options)
-    # decode(options)
+    # train(options)
+    decode(options)

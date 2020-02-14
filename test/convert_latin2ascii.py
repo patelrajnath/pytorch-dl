@@ -30,7 +30,10 @@ with open(sys.argv[1]) as fin, open(sys.argv[1]+'.ascii.txt', 'w') as fout, open
         original = line
         tokens = line.split()
         tokens_updated = list()
-        for i in range(0, len(tokens), 2):
+
+        # use step=2 to normalize a truecaser model
+        step = 1
+        for i in range(0, len(tokens), step):
             word = tokens[i]
             if word.isupper():
                 for latin in all_caps_map:

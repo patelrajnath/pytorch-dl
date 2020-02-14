@@ -246,7 +246,9 @@ class TransformerDecoder(nn.Module):
 
         # TODO: Move mask creation in EncoderDecoder module and make the mask application if provided as at decoding
         #  time both mask and att_mask should not be applied in both encoder and decoder
-        mask, mask_att = get_masks(slen, lengths, causal=True)
+        mask, mask_att = get_masks(slen, lengths, causal=False)
+
+        print(mask, mask_att)
 
         tensor = self.bert_emb(tokens)
         #  TODO: move the tensor to devoce to make it compatible with GPU
