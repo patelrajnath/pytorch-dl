@@ -58,6 +58,7 @@ def train(arg):
         if p.dim() > 1:
             nn.init.xavier_uniform_(p)
 
+    load_model_state(os.path.join(modeldir, 'checkpoints_best.pt'), model, data_parallel=False)
     # criterion = LabelSmoothedCrossEntropy(tgt_vocab_size=vocab_size_tgt, label_smoothing=arg.label_smoothing,
     #                                       ignore_index=vocab_tgt.pad_index)
     criterion = nn.CrossEntropyLoss()
@@ -149,7 +150,7 @@ def decode(arg):
             nn.init.xavier_uniform_(p)
 
     load_model_state(os.path.join(modeldir, 'checkpoints_best.pt'), model, data_parallel=False)
-    cuda_condition = torch.cuda.is_available()
+    cuda_condition = torch.cuda.is_available() and not arg.cpu
     device = torch.device("cuda:0" if cuda_condition else "cpu")
 
     if cuda_condition:
@@ -161,9 +162,9 @@ def decode(arg):
                           total=len(data_loader))
 
     def greedy_decode(model, src_tokens, source_lengths, tgt_tokens, target_lengths, start_symbol):
-        # prob, _ = model(src_tokens, source_lengths, tgt_tokens, target_lengths)
-        # print(prob.shape)
-        # return torch.argmax(prob, dim=2)
+        prob, _ = model(src_tokens, source_lengths, tgt_tokens, target_lengths)
+        print(prob.shape)
+        return torch.argmax(prob, dim=2)
         memory = model.encoder(src_tokens, source_lengths)
         ys = torch.ones(1, 1).fill_(start_symbol).type_as(src_tokens.data)
         print(ys)
@@ -293,5 +294,5 @@ if __name__ == "__main__":
 
     print('OPTIONS ', options)
 
-    # train(options)
-    decode(options)
+    train(options)
+    # decode(options)

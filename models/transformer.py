@@ -249,6 +249,7 @@ class TransformerDecoder(nn.Module):
         mask, mask_att = get_masks(slen, lengths, causal=True)
 
         tensor = self.bert_emb(tokens)
+        #  TODO: move the tensor to devoce to make it compatible with GPU
         tensor *= mask.unsqueeze(-1).to(tensor.dtype)
         inner_state = [tensor]
         for i, layer in enumerate(self.tblocks_decoder):
