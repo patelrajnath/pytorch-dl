@@ -173,14 +173,61 @@ def decode(arg):
             prob, logit = model.generator(out[:, -1])
             print(prob.shape, logit.shape)
             # x, next_word = torch.max(prob, dim=1)
-            print(torch.topk(prob, 1).shape)
+            # print(torch.topk(prob, 1).shape)
             next_word = torch.topk(prob, 1)[1].squeeze(1)
-            print(next_word)
+            # print(next_word)
             next_word = next_word.data[0]
             ys = torch.cat([ys,
                             torch.ones(1, 1).type_as(src_tokens.data).fill_(next_word)], dim=1)
             print(ys)
         return ys
+
+    def batch_decode(model, src_tokens, src_len, tgt_tokens, target_lengths, start_symbol, max_len=200):
+        # input batch
+        bs = len(src_len)
+
+        src_enc = model.encoder(src_tokens, src_len)
+        assert src_enc.size(0) == bs
+
+        # generated sentences
+        generated = src_len.new(max_len, bs)  # upcoming output
+        generated.fill_(vocab_tgt.pad_index)  # fill upcoming ouput with <PAD>
+        generated[0].fill_(vocab_tgt.sos_index)  # fill 0th index with <SOS>
+
+        cur_len = 1
+        gen_len = src_len.clone().fill_(1)
+        unfinished_sents = src_len.clone().fill_(1)
+
+        while cur_len < max_len:
+            # compute word scores
+            tensor = model.decoder(
+                tokens=generated[:cur_len].transpose(0, 1),
+                lengths=gen_len,
+                memory=src_enc,
+                source_lengths=src_len,
+            )
+            # print(tensor.shape)
+            tensor = tensor.data[:, -1].type_as(src_enc)  # (bs, dim)
+            # print(tensor.shape)
+            prob, logit = model.generator(tensor)
+            # print(prob.shape, logit.shape)
+            # x, next_word = torch.max(prob, dim=1)
+            next_words = torch.topk(prob, 1)[1].squeeze(1)
+            print(next_words)
+            # print(next_words, generated[:cur_len])
+
+            # update generations / lengths / finished sentences / current length
+            generated[cur_len] = next_words * unfinished_sents + vocab_tgt.pad_index * (1 - unfinished_sents)
+            gen_len.add_(unfinished_sents)
+            unfinished_sents.mul_(next_words.ne(vocab_tgt.eos_index).long())
+            cur_len = cur_len + 1
+
+            # break
+            # assert tensor.size() == (1, bs, self.dim), (cur_len, max_len,
+            #                                             src_enc.size(), tensor.size(), (1, bs, self.dim))
+            # tensor = tensor.data[-1, :, :].type_as(src_enc)  # (bs, dim)
+            # scores = self.pred_layer.get_scores(tensor)      # (bs, n_words)
+        return generated
 
     with torch.no_grad():
         for i, data in data_iter:
@@ -188,6 +235,8 @@ def decode(arg):
             src_tokens, tgt_tokens, source_lengths, target_lengths = data
             out = greedy_decode(model, src_tokens, source_lengths, tgt_tokens, target_lengths,
                                 start_symbol=vocab_tgt.sos_index)
+            # out = batch_decode(model, src_tokens, source_lengths, tgt_tokens, target_lengths,
+            #                    start_symbol=vocab_tgt.sos_index)
             print("Translation:", end="\t")
             for i in range(0, out.size(1)):
                 sym = vocab_tgt.itos[out[0, i]]
@@ -296,5 +345,5 @@ if __name__ == "__main__":
 
     print('OPTIONS ', options)
 
-    # train(options)
-    decode(options)
+    train(options)
+    # decode(options)
