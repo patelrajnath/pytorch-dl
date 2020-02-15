@@ -27,10 +27,10 @@ class SelfAttention(nn.Module):
         else:
             self.dim_per_head = self.emb_dim
 
-        self.toqueries = nn.Linear(self.emb_dim, self.dim_per_head * heads, bias=True)
-        self.tovalue = nn.Linear(self.emb_dim, self.dim_per_head * heads, bias=True)
-        self.tokey = nn.Linear(self.emb_dim, self.dim_per_head * heads, bias=True)
-        self.unifyheads = nn.Linear(self.dim_per_head * heads, self.emb_dim, bias=True)
+        self.toqueries = nn.Linear(self.emb_dim, self.dim_per_head * heads)
+        self.tovalue = nn.Linear(self.emb_dim, self.dim_per_head * heads)
+        self.tokey = nn.Linear(self.emb_dim, self.dim_per_head * heads)
+        self.unifyheads = nn.Linear(self.dim_per_head * heads, self.emb_dim)
 
     def forward(self, tensor, mask_att, kv=None):
         bs, qlen, dim = tensor.size()
