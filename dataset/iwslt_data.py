@@ -28,8 +28,8 @@ def get_data():
     def tokenize_en(text):
         return [tok.text for tok in spacy_en.tokenizer(text)]
 
-    BOS_WORD = '<s>'
-    EOS_WORD = '</s>'
+    BOS_WORD = '<sos>'
+    EOS_WORD = '<eos>'
     BLANK_WORD = "<blank>"
     SRC = data.Field(tokenize=tokenize_de, pad_token=BLANK_WORD)
     TGT = data.Field(tokenize=tokenize_en, init_token = BOS_WORD,
@@ -43,7 +43,6 @@ def get_data():
     MIN_FREQ = 2
     SRC.build_vocab(train.src, min_freq=MIN_FREQ)
     TGT.build_vocab(train.trg, min_freq=MIN_FREQ)
-
     return train, val, test, SRC, TGT
 
 
@@ -126,7 +125,7 @@ class SimpleLossCompute:
         self.opt = opt
 
     def __call__(self, x, y, norm):
-        x = self.generator(x)
+        x, _ = self.generator(x)
         loss = self.criterion(x.contiguous().view(-1, x.size(-1)),
                               y.contiguous().view(-1)) / norm
         loss.backward()

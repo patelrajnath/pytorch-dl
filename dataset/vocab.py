@@ -38,12 +38,12 @@ class TorchVocab(object):
 
 class Vocab(TorchVocab):
     def __init__(self, counter, max_size, min_freq):
-        super().__init__(counter, specials=['<pad>', '<oov>', '<eos>', '<sos>', '<mask>'],
+        super().__init__(counter, specials=['<oov>', '<pad>', '<sos>','<eos>', '<mask>'],
                          max_size=max_size, min_freq=min_freq)
-        self.pad_index = 0
-        self.unk_index = 1
-        self.eos_index = 2
-        self.sos_index = 3
+        self.unk_index = 0
+        self.pad_index = 1
+        self.sos_index = 2
+        self.eos_index = 3
         self.mask_index = 4
 
     def to_seq(self, sentence, max_len=None, with_eos=False, with_sos=False, with_len=False):
