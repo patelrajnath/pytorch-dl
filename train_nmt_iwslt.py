@@ -25,7 +25,7 @@ train, val, test, SRC, TGT = get_data()
 
 pad_idx = TGT.vocab.stoi["<blank>"]
 
-BATCH_SIZE = 4000
+BATCH_SIZE = 10                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     
 model_dim=32
 heads=2
 depth=1
@@ -39,9 +39,9 @@ valid_iter = MyIterator(val, batch_size=BATCH_SIZE, device=torch.device("cuda" i
                         repeat=False, sort_key=lambda x: (len(x.src), len(x.trg)),
                         batch_size_fn=batch_size_fn, train=True)
 
-model = TransformerEncoderDecoder(k=model_dim, heads=heads, dropout=0.1, depth=depth, num_emb=len(SRC.vocab),
-                                  num_emb_target=len(TGT.vocab), max_len=80,
-                                  mask_future_steps=True)
+                                                        model = TransformerEncoderDecoder(k=model_dim, heads=heads, dropout=0.1, depth=depth, num_emb=len(SRC.vocab),   
+                                                                                          num_emb_target=len(TGT.vocab), max_len=80,
+                                                                                          mask_future_steps=True)
 
 # Initialize parameters with Glorot / fan_avg.
 for p in model.parameters():
@@ -51,10 +51,11 @@ for p in model.parameters():
 # criterion = nn.CrossEntropyLoss()
 criterion = LabelSmoothing(size=len(TGT.vocab), padding_idx=pad_idx, smoothing=0.1)
 # optimizer = Adam(params=model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-8)
-optimizer = NoamOpt(32, 1, 2000, torch.optim.Adam(model.parameters(), lr=0, betas=(0.9, 0.98), eps=1e-9))
+optimizer = NoamOpt(model_dim, depth, 2000, torch.optim.Adam(model.parameters(), lr=0, betas=(0.9, 0.98), eps=1e-9))
 # scheduler_cosine = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 20)
 # scheduler_warmup = GradualWarmupScheduler(optimizer, multiplier=8, total_epoch=1000,
 #                                           after_scheduler=scheduler_cosine)
+compute_loss = SimpleLossCompute(model.generator, criterion, optimizer)
 
 cuda_condition = torch.cuda.is_available()
 device = torch.device("cuda:0" if cuda_condition else "cpu")
@@ -88,7 +89,7 @@ for epoch in range(1, 20):
         print(bs, src_lengths.shape, tgt_lengths.shape)
         # exit(0)
         _, logit = model(src, src_lengths, trg, tgt_lengths)
-        loss = SimpleLossCompute(logit.transpose(1, 2), trg,  tgt_lengths.sum())
+        loss = compute_loss(logit.transpose(1, 2), trg,  tgt_lengths.sum())
         total_loss += loss
         total_tokens += tgt_lengths.sum()
         tokens += tgt_lengths.sum()
