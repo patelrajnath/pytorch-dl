@@ -27,13 +27,12 @@ class SelfAttention(nn.Module):
         else:
             self.dim_per_head = self.emb_dim
 
-        self.toqueries = nn.Linear(self.emb_dim, self.dim_per_head * heads, bias=False)
-        self.tovalue = nn.Linear(self.emb_dim, self.dim_per_head * heads, bias=False)
-        self.tokey = nn.Linear(self.emb_dim, self.dim_per_head * heads, bias=False)
-        self.unifyheads = nn.Linear(self.dim_per_head * heads, self.emb_dim, bias=False)
+        self.toqueries = nn.Linear(self.emb_dim, self.dim_per_head * heads, bias=True)
+        self.tovalue = nn.Linear(self.emb_dim, self.dim_per_head * heads, bias=True)
+        self.tokey = nn.Linear(self.emb_dim, self.dim_per_head * heads, bias=True)
+        self.unifyheads = nn.Linear(self.dim_per_head * heads, self.emb_dim, bias=True)
 
     def forward(self, tensor, mask_att, kv=None):
-        b, t, k = tensor.size()
         bs, qlen, dim = tensor.size()
         if kv is not None:
             kv = kv
@@ -42,33 +41,33 @@ class SelfAttention(nn.Module):
             kv = tensor
             klen = qlen
 
-        h = self.heads
-        kv_b, kv_t, kv_k = kv.size()
+        heads = self.heads
+        kv_bs, kv_qlen, kv_dim = kv.size()
 
-        query = self.toqueries(tensor).view(b, t, h, self.dim_per_head)
-        key = self.tokey(kv).view(kv_b, kv_t, h, self.dim_per_head)
-        value = self.tovalue(kv).view(kv_b, kv_t, h, self.dim_per_head)
+        query = self.toqueries(tensor).view(bs, qlen, heads, self.dim_per_head)
+        key = self.tokey(kv).view(kv_bs, kv_qlen, heads, self.dim_per_head)
+        value = self.tovalue(kv).view(kv_bs, kv_qlen, heads, self.dim_per_head)
 
-        query = query.transpose(1, 2).contiguous().view(b * h, t, self.dim_per_head)
-        key = key.transpose(1, 2).contiguous().view(kv_b * h, kv_t, self.dim_per_head)
-        value = value.transpose(1, 2).contiguous().view(kv_b * h, kv_t, self.dim_per_head)
+        query = query.transpose(1, 2).contiguous().view(bs * heads, qlen, self.dim_per_head)
+        key = key.transpose(1, 2).contiguous().view(kv_bs * heads, kv_qlen, self.dim_per_head)
+        value = value.transpose(1, 2).contiguous().view(kv_bs * heads, kv_qlen, self.dim_per_head)
 
         query = query / (self.dim_per_head ** (1 / 4))
         key = key / (self.dim_per_head ** (1 / 4))
 
         dot = torch.bmm(query, key.transpose(1, 2))
 
-        dot_mask = dot.contiguous().view(bs, h, qlen, klen)
+        dot_mask = dot.contiguous().view(bs, heads, qlen, klen)
 
         mask_reshape = (bs, 1, qlen, klen) if mask_att.dim() == 3 else (bs, 1, 1, klen)
         mask_att = (mask_att == 0).view(mask_reshape).expand_as(dot_mask)  # (bs, n_heads, qlen, klen)
         dot_mask.masked_fill_(mask_att, -float('inf'))
-        dot = dot_mask.contiguous().view(bs*h, qlen, klen)
+        dot = dot_mask.contiguous().view(bs * heads, qlen, klen) # (bs, n_heads, qlen, klen)
 
         dot = F.softmax(dot, dim=2)
         # print(torch.sum(dot, dim=2))
-        out = torch.bmm(dot, value).view(b, h, t, self.dim_per_head)
-        out = out.transpose(1, 2).contiguous().view(b, t, h * self.dim_per_head)
+        out = torch.bmm(dot, value).view(bs, heads, qlen, self.dim_per_head)
+        out = out.transpose(1, 2).contiguous().view(bs, qlen, heads * self.dim_per_head)
         return self.unifyheads(out)
         # print('key:', key.size(), 'value:', value.size(), 'query:', query.size(),
         #       'dot', dot.size(), "out", out.size())
@@ -110,7 +109,8 @@ class TransformerBlockDecoder(nn.Module):
                                        multihead_shared_emb=multihead_shared_emb)
 
         # Encoder-decoder self attention
-        self.attention_encoder_decoder = SelfAttention(emb_dim, heads=heads, multihead_shared_emb=multihead_shared_emb)
+        self.attention_encoder_decoder = SelfAttention(emb_dim, heads=heads,
+                                                       multihead_shared_emb=multihead_shared_emb)
 
         self.norm1 = nn.LayerNorm(emb_dim)
         self.norm2 = nn.LayerNorm(emb_dim)
@@ -238,20 +238,18 @@ class TransformerDecoder(nn.Module):
 
         self.tblocks_decoder = nn.ModuleList()
         for _ in range(depth):
-            self.tblocks_decoder.append(TransformerBlockDecoder(emb_dim, heads, mask_future_steps,
-                                                                dropout=dropout, multihead_shared_emb=multihead_shared_emb))
+            self.tblocks_decoder.append(TransformerBlockDecoder(emb_dim, heads, mask_future_steps, dropout=dropout,
+                                                                multihead_shared_emb=multihead_shared_emb))
 
     def forward(self, tokens, lengths, memory, source_lengths):
         bs, slen = tokens.size()
 
         # TODO: Move mask creation in EncoderDecoder module and make the mask application if provided as at decoding
         #  time both mask and att_mask should not be applied in both encoder and decoder
-        mask, mask_att = get_masks(slen, lengths, causal=False)
-
-        print(mask, mask_att)
-
+        mask, mask_att = get_masks(slen, lengths, causal=True)
         tensor = self.bert_emb(tokens)
-        #  TODO: move the tensor to devoce to make it compatible with GPU
+
+        #  TODO: move the tensor to device to make it compatible with GPU
         tensor *= mask.unsqueeze(-1).to(tensor.dtype)
         inner_state = [tensor]
         for i, layer in enumerate(self.tblocks_decoder):
