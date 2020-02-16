@@ -10,6 +10,7 @@ import math
 
 import torch
 from torch import nn
+from torch.autograd import Variable
 
 
 class PositionEmbedding(nn.Module):
@@ -52,6 +53,5 @@ class PositionalEncoding(nn.Module):
         self.register_buffer('pe', pe)
 
     def forward(self, x):
-        x = x + Variable(self.pe[:, :x.size(1)],
-                         requires_grad=False)
+        x = x + Variable(self.pe[:, :x.size(1)], requires_grad=False)
         return self.dropout(x)
