@@ -53,7 +53,7 @@ def train(arg):
             nn.init.xavier_uniform_(p)
 
     criterion = LabelSmoothing(size=len(TGT.vocab), padding_idx=pad_idx, smoothing=0.1)
-    optimizer = NoamOpt(model_dim, 2, 4000, torch.optim.Adam(model.parameters(), lr=0.0005, betas=(0.9, 0.98), eps=1e-9))
+    optimizer = NoamOpt(model_dim, 2, 4000, torch.optim.Adam(model.parameters(), lr=0.001, betas=(0.9, 0.98), eps=1e-9))
     compute_loss = SimpleLossCompute(model.generator, criterion, optimizer)
 
     # criterion = nn.CrossEntropyLoss()
@@ -85,6 +85,7 @@ def train(arg):
         total_loss = 0
         tokens = 0
         for i, batch in enumerate(train_iter):
+            model.train()
             bs = batch.batch_size
             src, trg = batch.src.transpose(0, 1), batch.trg.transpose(0, 1)
 
