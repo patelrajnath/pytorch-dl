@@ -62,7 +62,7 @@ def train(arg):
     # scheduler_warmup = GradualWarmupScheduler(optimizer, multiplier=8, total_epoch=1000,
     #                                           after_scheduler=scheduler_cosine)
 
-    cuda_condition = torch.cuda.is_available()
+    cuda_condition = torch.cuda.is_available() and not arg.cpu
     device = torch.device("cuda:0" if cuda_condition else "cpu")
 
     if cuda_condition:
