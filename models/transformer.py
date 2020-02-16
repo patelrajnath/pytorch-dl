@@ -11,6 +11,7 @@ from torch import nn
 import torch.nn.functional as F
 
 from models.embeddings.mbert_embeddings import MBertEmbeddings
+from models.embeddings.position_emb import PositionalEncoding
 from models.utils.model_utils import d, get_masks, mask_
 
 
@@ -76,7 +77,7 @@ class SelfAttention(nn.Module):
 
 
 class TransformerBlock(nn.Module):
-    def __init__(self, emb_dim, heads, ff=4, dropout=0.01, multihead_shared_emb=False):
+    def __init__(self, emb_dim, heads, ff=4, dropout=0.1, multihead_shared_emb=False):
         super().__init__()
 
         self.attention = SelfAttention(emb_dim, heads=heads, multihead_shared_emb=multihead_shared_emb)
@@ -103,7 +104,7 @@ class TransformerBlock(nn.Module):
 
 
 class TransformerBlockDecoder(nn.Module):
-    def __init__(self, emb_dim, heads, ff=4, mask_future_steps=False, dropout=0.01, multihead_shared_emb=False):
+    def __init__(self, emb_dim, heads, ff=4, mask_future_steps=False, dropout=0.1, multihead_shared_emb=False):
         super().__init__()
 
         # Masked self attention
@@ -161,7 +162,7 @@ class Transformer(nn.Module):
 
         self.num_tokens = num_tokens
         self.token_emb = nn.Embedding(num_tokens, k)
-        self.pos_emb = nn.Embedding(seq_length, k)
+        self.pos_emb = PositionalEncoding(k, dropout)
 
         # The sequence of transformer blocks that does all the
         # heavy lifting
@@ -187,10 +188,8 @@ class Transformer(nn.Module):
         b, t, k = tokens.size()
 
         # generate position embeddings
-        positions = torch.arange(t, device=d())
-        positions = self.pos_emb(positions)[None, :, :].expand(b, t, k)
+        x = self.pos_emb(x)
 
-        x = tokens + positions
         x = self.do(x)
 
         x = self.tblocks(x)
@@ -203,10 +202,11 @@ class Transformer(nn.Module):
 
 
 class TransformerEncoder(nn.Module):
-    def __init__(self, emb_dim, heads, depth, num_emb, max_len, dropout=0.01, multihead_shared_emb=False):
+    def __init__(self, emb_dim, heads, depth, num_emb, max_len, dropout=0.1, multihead_shared_emb=False):
         super().__init__()
         self.max_len = max_len
-        self.mbert_embeddings = MBertEmbeddings(num_emb, emb_dim)
+        self.token_emb = nn.Embedding(num_emb, emb_dim)
+        self.pos_emb = PositionalEncoding(emb_dim, dropout)
 
         tblocks = []
         for _ in range(depth):
@@ -218,14 +218,13 @@ class TransformerEncoder(nn.Module):
         bs, slen = tokens.size()
         mask, mask_att = get_masks(slen, lengths)
 
-        tensor = self.mbert_embeddings(tokens)
+        tensor = self.token_emb(tokens)
+        tensor = self.pos_emb(tensor)
 
         tensor *= mask.unsqueeze(-1).to(tensor.dtype)
-        inner_state = [tensor]
 
         for i, layer in enumerate(self.tblocks):
             tensor = layer(tensor, mask_att)
-            inner_state.append(tensor)
             tensor *= mask.unsqueeze(-1).to(tensor.dtype)
 
         return tensor
@@ -233,9 +232,10 @@ class TransformerEncoder(nn.Module):
 
 class TransformerDecoder(nn.Module):
     def __init__(self, emb_dim, heads, depth, num_emb_target, max_len, mask_future_steps=False,
-                 dropout=0.01, multihead_shared_emb=False):
+                 dropout=0.1, multihead_shared_emb=False):
         super().__init__()
-        self.bert_emb = MBertEmbeddings(num_emb_target, emb_dim)
+        self.token_emb = nn.Embedding(num_emb_target, emb_dim)
+        self.pos_emb = PositionalEncoding(emb_dim, dropout)
         self.max_len = max_len
 
         self.tblocks_decoder = nn.ModuleList()
@@ -249,15 +249,15 @@ class TransformerDecoder(nn.Module):
         # TODO: Move mask creation in EncoderDecoder module and make the mask application if provided as at decoding
         #  time both mask and att_mask should not be applied in both encoder and decoder
         mask, mask_att = get_masks(slen, lengths, causal=True)
-        tensor = self.bert_emb(tokens)
+
+        tensor = self.token_emb(tokens)
+        tensor = self.pos_emb(tensor)
 
         #  TODO: move the tensor to device to make it compatible with GPU
         tensor *= mask.unsqueeze(-1).to(tensor.dtype)
-        inner_state = [tensor]
         for i, layer in enumerate(self.tblocks_decoder):
             tensor = layer(tensor, mask_att, memory, source_lengths)
             tensor *= mask.unsqueeze(-1).to(tensor.dtype)
-            inner_state.append(tokens)
         return tensor
 
 
@@ -273,7 +273,7 @@ class Generator(nn.Module):
 
 
 class TransformerEncoderDecoder(nn.Module):
-    def __init__(self, k, heads, depth, num_emb, num_emb_target, max_len, mask_future_steps=True, dropout=0.01):
+    def __init__(self, k, heads, depth, num_emb, num_emb_target, max_len, mask_future_steps=True, dropout=0.1):
         super().__init__()
         self.encoder = TransformerEncoder(k, heads, depth, num_emb, max_len, dropout=dropout, multihead_shared_emb=True)
         self.decoder = TransformerDecoder(k, heads, depth, num_emb_target, max_len, mask_future_steps,
