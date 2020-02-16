@@ -110,7 +110,7 @@ def train(arg):
         checkpoint = "checkpoint.{}.".format(loss_average) + 'epoch' + str(epoch) + ".pt"
         save_state(os.path.join(model_dir, checkpoint), model, criterion, optimizer, epoch)
 
-        if previous_best > loss_average :
+        if previous_best > loss_average:
             save_state(os.path.join(model_dir, 'checkpoints_best.pt'), model, criterion, optimizer, epoch)
             previous_best = loss_average
 
