@@ -104,8 +104,8 @@ def train(arg):
                       (epoch, i, loss / batch_ntokens, math.exp(loss / batch_ntokens), tokens / elapsed))
                 start = time.time()
                 tokens = 0
-                checkpoint = "checkpoint.{}.".format(total_loss / total_tokens) + 'epoch' + str(epoch) + ".pt"
-                save_state(os.path.join(model_dir, checkpoint), model, criterion, optimizer, epoch)
+                # checkpoint = "checkpoint.{}.".format(total_loss / total_tokens) + 'epoch' + str(epoch) + ".pt"
+                # save_state(os.path.join(model_dir, checkpoint), model, criterion, optimizer, epoch)
         loss_average = total_loss / total_tokens
         checkpoint = "checkpoint.{}.".format(loss_average) + 'epoch' + str(epoch) + ".pt"
         save_state(os.path.join(model_dir, checkpoint), model, criterion, optimizer, epoch)
