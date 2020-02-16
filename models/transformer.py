@@ -60,7 +60,7 @@ class SelfAttention(nn.Module):
         dot_mask = dot.contiguous().view(bs, heads, qlen, klen)
 
         mask_reshape = (bs, 1, qlen, klen) if mask_att.dim() == 3 else (bs, 1, 1, klen)
-        mask_att = (mask_att == 1).view(mask_reshape).expand_as(dot_mask)  # (bs, n_heads, qlen, klen)
+        mask_att = (mask_att == 0).view(mask_reshape).expand_as(dot_mask)  # (bs, n_heads, qlen, klen)
         dot_mask.masked_fill_(mask_att, -float('inf'))
         dot = dot_mask.contiguous().view(bs * heads, qlen, klen) # (bs, n_heads, qlen, klen)
 
