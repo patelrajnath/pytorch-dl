@@ -43,7 +43,7 @@ def train(arg):
                             repeat=False, sort_key=lambda x: (len(x.src), len(x.trg)),
                             batch_size_fn=batch_size_fn, train=True)
 
-    model = TransformerEncoderDecoder(k=model_dim, heads=heads, dropout=0.1, depth=depth, num_emb=len(SRC.vocab),
+    model = TransformerEncoderDecoder(k=model_dim, heads=heads, dropout=arg.dropout, depth=depth, num_emb=len(SRC.vocab),
                                       num_emb_target=len(TGT.vocab), max_len=max_len,
                                       mask_future_steps=True)
 
@@ -121,12 +121,12 @@ if __name__ == "__main__":
     parser.add_argument("-e", "--num-epochs",
                         dest="num_epochs",
                         help="Number of epochs.",
-                        default=80, type=int)
+                        default=30, type=int)
 
     parser.add_argument("-b", "--batch-size",
                         dest="batch_size",
                         help="The batch size.",
-                        default=4, type=int)
+                        default=4000, type=int)
 
     parser.add_argument("--learn-rate",
                         dest="lr",
@@ -136,7 +136,7 @@ if __name__ == "__main__":
     parser.add_argument("--dropout",
                         dest="dropout",
                         help="Learning rate",
-                        default=0.3, type=float)
+                        default=0.1, type=float)
     parser.add_argument("--label-smoothing",
                         dest="label_smoothing",
                         help="Label smoothing rate",
