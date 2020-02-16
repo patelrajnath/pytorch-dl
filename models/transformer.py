@@ -265,6 +265,7 @@ class Generator(nn.Module):
         self.ff = nn.Linear(k, num_emb_target)
 
     def forward(self, enc_dec):
+        # print('In generator', enc_dec.shape)
         ff_out = self.ff(enc_dec)
         return F.log_softmax(ff_out, dim=-1), ff_out
 
@@ -286,4 +287,5 @@ class TransformerEncoderDecoder(nn.Module):
             tgt_tokens = src_tokens
             target_lengths = source_lengths
         enc_dec = self.decoder(tgt_tokens, target_lengths, enc, source_lengths)
-        return self.generator(enc_dec)
+        # return self.generator(enc_dec)
+        return enc_dec
