@@ -11,7 +11,7 @@ from torch import nn
 import torch.nn.functional as F
 
 from models.embeddings.mbert_embeddings import MBertEmbeddings
-from models.utils.model_utils import d, get_masks
+from models.utils.model_utils import d, get_masks, mask_
 
 
 class SelfAttention(nn.Module):
@@ -56,13 +56,15 @@ class SelfAttention(nn.Module):
         key = key / (self.dim_per_head ** (1 / 4))
 
         dot = torch.bmm(query, key.transpose(1, 2))
+        if self.mask_future_steps:  # mask out the upper half of the dot matrix, excluding the diagonal
+            mask_(dot, maskval=float('-inf'), mask_diagonal=False)
 
-        dot_mask = dot.contiguous().view(bs, heads, qlen, klen)
-
-        mask_reshape = (bs, 1, qlen, klen) if mask_att.dim() == 3 else (bs, 1, 1, klen)
-        mask_att = (mask_att == 0).view(mask_reshape).expand_as(dot_mask)  # (bs, n_heads, qlen, klen)
-        dot_mask.masked_fill_(mask_att, -float('inf'))
-        dot = dot_mask.contiguous().view(bs * heads, qlen, klen) # (bs, n_heads, qlen, klen)
+        # TODO check why the following masking fails
+        # dot_mask = dot.contiguous().view(bs, heads, qlen, klen)
+        # mask_reshape = (bs, 1, qlen, klen) if mask_att.dim() == 3 else (bs, 1, 1, klen)
+        # mask_att = (mask_att == 0).view(mask_reshape).expand_as(dot_mask)  # (bs, n_heads, qlen, klen)
+        # dot_mask.masked_fill_(mask_att, -float('inf'))
+        # dot = dot_mask.contiguous().view(bs * heads, qlen, klen) # (bs, n_heads, qlen, klen)
 
         dot = F.softmax(dot, dim=2)
         # print(torch.sum(dot, dim=2))

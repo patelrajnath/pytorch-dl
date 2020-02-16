@@ -85,7 +85,6 @@ def train(arg):
         total_loss = 0
         tokens = 0
         for i, batch in enumerate(train_iter):
-            print('step: ', i)
             bs = batch.batch_size
             src, trg = batch.src.transpose(0, 1), batch.trg.transpose(0, 1)
 
