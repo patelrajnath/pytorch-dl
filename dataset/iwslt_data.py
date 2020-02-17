@@ -114,6 +114,11 @@ def rebatch(pad_idx, batch):
     return Batch(src, trg, pad_idx)
 
 
+def rebatch_data(pad_idx, batch):
+    "Fix order in torchtext to match ours"
+    source, targets, lengths_source, lengths_target = batch
+    return Batch(source, targets, pad_idx)
+
 class SimpleLossCompute:
     "A simple loss compute and train function."
 
