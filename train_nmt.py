@@ -9,12 +9,13 @@ import math
 import os
 from argparse import ArgumentParser
 from math import inf
+import time
 
 from torch.autograd import Variable
 
 from criterion.label_smoothed_cross_entropy import LabelSmoothedCrossEntropy
 from dataset.data_loader_translation import TranslationDataSet, BySequenceLengthSampler
-from dataset.iwslt_data import rebatch_data, subsequent_mask
+from dataset.iwslt_data import rebatch_data, subsequent_mask, LabelSmoothing, NoamOpt, SimpleLossCompute
 from models.transformer import TransformerEncoderDecoder
 import torch.nn.functional as F
 import torch
@@ -44,7 +45,14 @@ def train(arg):
     h = arg.num_heads
     depth = arg.depth
     max_size=arg.max_length
-    modeldir = "nmt"
+    model_dir = "nmt"
+    try:
+        os.makedirs(model_dir)
+    except OSError:
+        pass
+
+    previous_best = inf
+
     data_set = TranslationDataSet(input_file, arg.source, arg.target, vocab_src, vocab_tgt, max_size,
                                   add_sos_and_eos=True)
 
@@ -52,7 +60,7 @@ def train(arg):
     # batch_sizes = 32
     # sampler = BySequenceLengthSampler(data_set, bucket_boundaries, batch_sizes)
 
-    data_loader = DataLoader(data_set, batch_size=1,
+    data_loader = DataLoader(data_set, batch_size=batch_size,
                              collate_fn=my_collate,
                              num_workers=0,
                              drop_last=False,
@@ -71,14 +79,18 @@ def train(arg):
         if p.dim() > 1:
             nn.init.xavier_uniform_(p)
 
-    load_model_state(os.path.join(modeldir, 'checkpoints_best.pt'), model, data_parallel=False)
+    load_model_state(os.path.join(model_dir, 'checkpoints_best.pt'), model, data_parallel=False)
     # criterion = LabelSmoothedCrossEntropy(tgt_vocab_size=vocab_size_tgt, label_smoothing=arg.label_smoothing,
     #                                       ignore_index=vocab_tgt.pad_index)
-    criterion = nn.CrossEntropyLoss()
-    optimizer = Adam(params=model.parameters(), lr=arg.lr, betas=(0.9, 0.999), eps=1e-8)
-    scheduler_cosine = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, arg.num_epochs)
-    scheduler_warmup = GradualWarmupScheduler(optimizer, multiplier=8, total_epoch=lr_warmup,
-                                              after_scheduler=scheduler_cosine)
+    # criterion = nn.CrossEntropyLoss()
+    # optimizer = Adam(params=model.parameters(), lr=arg.lr, betas=(0.9, 0.999), eps=1e-8)
+    # scheduler_cosine = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, arg.num_epochs)
+    # scheduler_warmup = GradualWarmupScheduler(optimizer, multiplier=8, total_epoch=lr_warmup,
+    #                                           after_scheduler=scheduler_cosine)
+
+    criterion = LabelSmoothing(size=len(vocab_tgt.stoi), padding_idx=1, smoothing=0.1)
+    optimizer = NoamOpt(arg.dim_model, 1, 2000, torch.optim.Adam(model.parameters(), lr=0, betas=(0.9, 0.98), eps=1e-9))
+    compute_loss = SimpleLossCompute(model.generator, criterion, optimizer)
 
     cuda_condition = torch.cuda.is_available() and not arg.cpu
     device = torch.device("cuda:0" if cuda_condition else "cpu")
@@ -94,41 +106,36 @@ def train(arg):
         return round(x/y, 2)
     previous_best = inf
     for epoch in range(1, arg.num_epochs):
+        start = time.time()
+        total_tokens = 0
         total_loss = 0
+        tokens = 0
         # Setting the tqdm progress bar
         # data_iter = tqdm.tqdm(enumerate(data_loader),
         #                       desc="Running epoch: {}".format(epoch),
         #                       total=len(data_loader))
         for i, batch in enumerate(rebatch_data(pad_idx=1, batch=b) for b in data_loader):
 
-            _, logit = model.generator(model(batch.src, batch.src_mask, batch.trg, batch.trg_mask))
-            loss = criterion(logit.transpose(1, 2), batch.trg)
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            scheduler_warmup.step()
-            total_loss += loss.item()
-            if i % arg.wait == 0 and i > 0:
-                try:
-                    os.makedirs(modeldir)
-                except OSError:
-                    pass
-                checkpoint = "checkpoint.{}.".format(truncate_division(total_loss, i)) + 'epoch' + str(epoch) + ".pt"
-                save_state(os.path.join(modeldir, checkpoint), model, criterion, optimizer, epoch)
-                print("Learning-rate: ", scheduler_warmup.get_lr()[0])
-        try:
-            os.makedirs(modeldir)
-        except OSError:
-            pass
-        loss_average = truncate_division(total_loss, len(data_loader))
-        checkpoint = "checkpoint.{}.".format(loss_average) + 'epoch' + str(epoch) + ".pt"
-        save_state(os.path.join(modeldir, checkpoint), model, criterion, optimizer, epoch)
-        print('Average loss: {}'.format(total_loss / len(data_loader)))
-        print('PPL: {}'.format(math.exp(total_loss / len(data_loader))))
-        print("Learning-rate: ", scheduler_warmup.get_lr()[0])
+            out = model(batch.src, batch.src_mask, batch.trg, batch.trg_mask)
+            loss = compute_loss(out, batch.trg_y, batch.ntokens)
+            total_loss += loss
+            total_tokens += batch.ntokens
+            tokens += batch.ntokens
 
-        if previous_best > loss_average :
-            save_state(os.path.join(modeldir, 'checkpoints_best.pt'), model, criterion, optimizer, epoch)
+            if i % arg.wait == 0 and i > 0:
+                elapsed = time.time() - start
+                print("Epoch %d Step: %d Loss: %f PPL: %f Tokens per Sec: %f" %
+                      (epoch, i, loss / batch.ntokens, math.exp(loss / batch.ntokens), tokens / elapsed))
+                start = time.time()
+                tokens = 0
+                # checkpoint = "checkpoint.{}.".format(total_loss / total_tokens) + 'epoch' + str(epoch) + ".pt"
+                # save_state(os.path.join(model_dir, checkpoint), model, criterion, optimizer, epoch)
+        loss_average = total_loss / total_tokens
+        checkpoint = "checkpoint.{}.".format(loss_average) + 'epoch' + str(epoch) + ".pt"
+        save_state(os.path.join(model_dir, checkpoint), model, criterion, optimizer, epoch)
+
+        if previous_best > loss_average:
+            save_state(os.path.join(model_dir, 'checkpoints_best.pt'), model, criterion, optimizer, epoch)
             previous_best = loss_average
 
 
@@ -277,7 +284,7 @@ if __name__ == "__main__":
     parser.add_argument("--dropout",
                         dest="dropout",
                         help="Learning rate",
-                        default=0.3, type=float)
+                        default=0.1, type=float)
     parser.add_argument("--label-smoothing",
                         dest="label_smoothing",
                         help="Label smoothing rate",
