@@ -269,7 +269,7 @@ if __name__ == "__main__":
     parser.add_argument("-e", "--num-epochs",
                         dest="num_epochs",
                         help="Number of epochs.",
-                        default=80, type=int)
+                        default=30, type=int)
 
     parser.add_argument("-b", "--batch-size",
                         dest="batch_size",
