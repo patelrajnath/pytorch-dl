@@ -125,9 +125,9 @@ def my_collate(batch):
     lengths_target = torch.tensor([t["target"].shape[0] for t in batch])
 
     source = [item["source"] for item in batch]
-    source = pad_sequence(source).transpose(0, 1)
+    source = pad_sequence(source, padding_value=1).transpose(0, 1)
 
     targets = [item["target"] for item in batch]
-    targets = pad_sequence(targets).transpose(0, 1)
+    targets = pad_sequence(targets, padding_value=1).transpose(0, 1)
 
     return source, targets, lengths_source, lengths_target
