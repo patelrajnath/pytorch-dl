@@ -82,7 +82,7 @@ class TransformerBlock(nn.Module):
 
         self.do = nn.Dropout(dropout)
 
-    def forward(self, tensor, mask):
+    def forward(self, tensor, mask=None):
         tensor = tensor + self.do(self.attention(self.norm1(tensor), mask))
         tensor = tensor + self.do(self.ff(self.norm2(tensor)))
         return tensor
@@ -113,6 +113,7 @@ class TransformerBlockDecoder(nn.Module):
         self.do = nn.Dropout(dropout)
 
     def forward(self, tensor, memory, src_mask, trg_mask):
+        # Add and layer normalize
         tensor = tensor + self.do(self.attention(self.norm1(tensor), trg_mask))
 
         # Add and layer normalize
@@ -161,8 +162,7 @@ class Transformer(nn.Module):
 
         x = self.tblocks(x)
 
-        # Average-pool over the t dimension and project to class
-        # probabilities
+        # Average-pool over the t dimension and project to class probabilities
         x = self.toprobs(x.mean(dim=1))
 
         return F.log_softmax(x, dim=1)
@@ -218,7 +218,6 @@ class Generator(nn.Module):
         self.ff = nn.Linear(k, num_emb_target)
 
     def forward(self, enc_dec):
-        # print('In generator', enc_dec.shape)
         ff_out = self.ff(enc_dec)
         return F.log_softmax(ff_out, dim=-1), ff_out
 
@@ -233,11 +232,13 @@ class TransformerEncoderDecoder(nn.Module):
 
     def forward(self, src_tokens, src_mask, tgt_tokens=None, trg_mask=None, predict=False):
         memory = self.encoder(src_tokens, src_mask)
+
+        # This code block is to handle mBERT pre-training
         if tgt_tokens is not None:
             tgt_tokens = tgt_tokens
             trg_mask = trg_mask
         else:
             tgt_tokens = src_tokens
             trg_mask = src_mask
-        enc_dec = self.decoder(tgt_tokens, memory, src_mask, trg_mask)
-        return enc_dec
+
+        return self.decoder(tgt_tokens, memory, src_mask, trg_mask)
