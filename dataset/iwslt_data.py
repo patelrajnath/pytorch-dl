@@ -111,8 +111,6 @@ class Batch:
 def rebatch(pad_idx, batch):
     "Fix order in torchtext to match ours"
     src, trg = batch.src.transpose(0, 1), batch.trg.transpose(0, 1)
-    print(src.shape, trg.shape)
-    exit(0)
     return Batch(src, trg, pad_idx)
 
 
