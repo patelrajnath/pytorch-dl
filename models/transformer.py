@@ -64,7 +64,7 @@ class SelfAttention(nn.Module):
         # print(scores.shape)
         if mask is not None:
             scores = scores.masked_fill(mask == 0, -1e9)
-            
+
         # print(scores.shape, mask.shape, tensor.shape)
         # if self.mask_future_steps:  # mask out the upper half of the dot matrix, excluding the diagonal
         #     mask_(dot, maskval=float('-inf'), mask_diagonal=False)
@@ -96,18 +96,14 @@ class TransformerBlock(nn.Module):
         self.ff = nn.Sequential(
             nn.Linear(emb_dim, ff * emb_dim),
             nn.ReLU(),
+            nn.Dropout(dropout),
             nn.Linear(ff * emb_dim, emb_dim))
 
         self.do = nn.Dropout(dropout)
 
     def forward(self, tensor, mask):
-        attended = self.attention(tensor, mask)
-        tensor = self.norm1(attended + tensor)
-        tensor = self.do(tensor)
-        ff_out = self.ff(tensor)
-        tensor = self.norm2(ff_out + tensor)
-        tensor = self.do(tensor)
-
+        tensor = tensor + self.do(self.attention(self.norm1(tensor), mask))
+        tensor = tensor + self.do(self.ff(self.norm2(tensor)))
         return tensor
 
 
@@ -130,31 +126,19 @@ class TransformerBlockDecoder(nn.Module):
         self.ff = nn.Sequential(
             nn.Linear(emb_dim, ff * emb_dim),
             nn.ReLU(),
+            nn.Dropout(dropout),
             nn.Linear(ff * emb_dim, emb_dim))
-
-        self.linear = nn.Linear(emb_dim, emb_dim)
 
         self.do = nn.Dropout(dropout)
 
     def forward(self, tensor, memory, src_mask, trg_mask):
-
-        masked_attention = self.attention(tensor, trg_mask)
-
-        # Add and layer normalize
-        tensor = self.norm1(masked_attention + tensor)
-
-        encdec_attention = self.attention_encoder_decoder(tensor, src_mask, memory)
+        tensor = tensor + self.do(self.attention(self.norm1(tensor), trg_mask))
 
         # Add and layer normalize
-        tensor = self.norm2(encdec_attention + tensor)
-        tensor = self.do(tensor)
+        tensor = tensor + self.do(self.attention_encoder_decoder(self.norm2(tensor), src_mask, memory))
 
         # Run feed-forward
-        ff_out = self.ff(tensor)
-
-        # Add and layer normalize
-        tensor = self.norm3(ff_out + tensor)
-        tensor = self.do(tensor)
+        tensor = tensor + self.do(self.ff(self.norm3(tensor)))
         return tensor
 
 
@@ -221,7 +205,6 @@ class TransformerEncoder(nn.Module):
 
         for i, layer in enumerate(self.tblocks):
             tensor = layer(tensor, mask)
-
         return tensor
 
 
