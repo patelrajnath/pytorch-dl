@@ -148,7 +148,7 @@ def decode(arg):
     h = arg.num_heads
     depth = arg.depth
     max_size = arg.max_length
-    modeldir = "nmt"
+    model_dir = "nmt"
     input_file = arg.path
     data_set = TranslationDataSet(input_file, arg.source, arg.target, vocab_src, vocab_tgt, max_size,
                                   add_sos_and_eos=True)
@@ -166,7 +166,7 @@ def decode(arg):
         if p.dim() > 1:
             nn.init.xavier_uniform_(p)
 
-    load_model_state(os.path.join(modeldir, 'checkpoints_best.pt'), model, data_parallel=False)
+    load_model_state(os.path.join(model_dir, 'checkpoints_best.pt'), model, data_parallel=False)
     cuda_condition = torch.cuda.is_available() and not arg.cpu
     device = torch.device("cuda:0" if cuda_condition else "cpu")
 
@@ -174,23 +174,23 @@ def decode(arg):
         model.cuda()
 
     # Setting the tqdm progress bar
-    data_iter = tqdm.tqdm(enumerate(data_loader),
-                          desc="Decoding",
-                          total=len(data_loader))
+    # data_iter = tqdm.tqdm(enumerate(data_loader),
+    #                       desc="Decoding",
+    #                       total=len(data_loader))
 
     def greedy_decode(model, src_tokens, src_mask, start_symbol):
-        # prob, _ = model(src_tokens, source_lengths, tgt_tokens, target_lengths)
-        # print(prob.shape)
-        # return torch.argmax(prob, dim=2)
         memory = model.encoder(src_tokens, src_mask)
         ys = torch.ones(1, 1).fill_(start_symbol).type_as(src_tokens.data)
         for i in range(100):
             out = model.decoder(Variable(ys), memory, src_mask, Variable(subsequent_mask(ys.size(1))))
-            prob, logit = model.generator(out[:, -1])
+            # prob, logit = model.generator(out[:, -1])
             # x, next_word = torch.max(prob, dim=1)
             # print(torch.topk(prob, 1).shape)
-            next_word = torch.topk(prob, 1)[1].squeeze(1)
+            # next_word = torch.topk(prob, 1)[1].squeeze(1)
             # print(next_word)
+            # next_word = next_word.data[0]
+            prob, logit = model.generator(out[:, -1])
+            _, next_word = torch.max(prob, dim=1)
             next_word = next_word.data[0]
             ys = torch.cat([ys,
                             torch.ones(1, 1).type_as(src_tokens.data).fill_(next_word)], dim=1)
@@ -244,14 +244,14 @@ def decode(arg):
         return generated
 
     with torch.no_grad():
-        for i, batch in enumerate(rebatch_data(pad_idx=1, batch=b) for b in data_loader):
+        for k, batch in enumerate(rebatch_data(pad_idx=1, batch=b) for b in data_loader):
             out = greedy_decode(model, batch.src, batch.src_mask, start_symbol=vocab_tgt.sos_index)
             # out = batch_decode(model, src_tokens, source_lengths, tgt_tokens, target_lengths,
             #                    start_symbol=vocab_tgt.sos_index)
             print("Translation:", end="\t")
             for i in range(0, out.size(1)):
                 sym = vocab_tgt.itos[out[0, i]]
-                if sym == "<pad>": break
+                if sym == "<eos>": break
                 print(sym, end=" ")
             print()
             print("Target:", end="\t")
