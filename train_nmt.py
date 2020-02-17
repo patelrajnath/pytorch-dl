@@ -10,8 +10,11 @@ import os
 from argparse import ArgumentParser
 from math import inf
 
+from torch.autograd import Variable
+
 from criterion.label_smoothed_cross_entropy import LabelSmoothedCrossEntropy
-from dataset.data_loader_translation import TranslationDataSet
+from dataset.data_loader_translation import TranslationDataSet, BySequenceLengthSampler
+from dataset.iwslt_data import rebatch_data, subsequent_mask
 from models.transformer import TransformerEncoderDecoder
 import torch.nn.functional as F
 import torch
@@ -45,10 +48,20 @@ def train(arg):
     data_set = TranslationDataSet(input_file, arg.source, arg.target, vocab_src, vocab_tgt, max_size,
                                   add_sos_and_eos=True)
 
-    data_loader = DataLoader(data_set, batch_size=batch_size, shuffle=False,
-                             collate_fn=my_collate)
+    # bucket_boundaries = [50, 100, 125, 150, 175, 200, 250, 300]
+    # batch_sizes = 32
+    # sampler = BySequenceLengthSampler(data_set, bucket_boundaries, batch_sizes)
+
+    data_loader = DataLoader(data_set, batch_size=1,
+                             collate_fn=my_collate,
+                             num_workers=0,
+                             drop_last=False,
+                             pin_memory=False,
+                             shuffle=True
+                             )
     vocab_size_src = len(vocab_src.stoi)
     vocab_size_tgt = len(vocab_tgt.stoi)
+
     model = TransformerEncoderDecoder(k, h, dropout=arg.dropout, depth=depth, num_emb=vocab_size_src,
                                       num_emb_target=vocab_size_tgt, max_len=max_size,
                                       mask_future_steps=True)
@@ -83,16 +96,13 @@ def train(arg):
     for epoch in range(1, arg.num_epochs):
         total_loss = 0
         # Setting the tqdm progress bar
-        data_iter = tqdm.tqdm(enumerate(data_loader),
-                              desc="Running epoch: {}".format(epoch),
-                              total=len(data_loader))
-        for i, data in data_iter:
-            data = [value.to(device) for value in data]
-            src_tokens, tgt_tokens, source_lengths, target_lengths = data
+        # data_iter = tqdm.tqdm(enumerate(data_loader),
+        #                       desc="Running epoch: {}".format(epoch),
+        #                       total=len(data_loader))
+        for i, batch in enumerate(rebatch_data(pad_idx=1, batch=b) for b in data_loader):
 
-            _, logit = model(src_tokens, source_lengths, tgt_tokens, target_lengths)
-            # loss = F.cross_entropy(decoder_out.transpose(1, 2), tgt_tokens, reduction='mean')
-            loss = criterion(logit.transpose(1, 2), tgt_tokens)
+            _, logit = model.generator(model(batch.src, batch.src_mask, batch.trg, batch.trg_mask))
+            loss = criterion(logit.transpose(1, 2), batch.trg)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -110,11 +120,11 @@ def train(arg):
             os.makedirs(modeldir)
         except OSError:
             pass
-        loss_average = truncate_division(total_loss, len(data_iter))
+        loss_average = truncate_division(total_loss, len(data_loader))
         checkpoint = "checkpoint.{}.".format(loss_average) + 'epoch' + str(epoch) + ".pt"
         save_state(os.path.join(modeldir, checkpoint), model, criterion, optimizer, epoch)
-        print('Average loss: {}'.format(total_loss / len(data_iter)))
-        print('PPL: {}'.format(math.exp(total_loss / len(data_iter))))
+        print('Average loss: {}'.format(total_loss / len(data_loader)))
+        print('PPL: {}'.format(math.exp(total_loss / len(data_loader))))
         print("Learning-rate: ", scheduler_warmup.get_lr()[0])
 
         if previous_best > loss_average :
@@ -161,17 +171,15 @@ def decode(arg):
                           desc="Decoding",
                           total=len(data_loader))
 
-    def greedy_decode(model, src_tokens, source_lengths, tgt_tokens, target_lengths, start_symbol):
+    def greedy_decode(model, src_tokens, src_mask, start_symbol):
         # prob, _ = model(src_tokens, source_lengths, tgt_tokens, target_lengths)
         # print(prob.shape)
         # return torch.argmax(prob, dim=2)
-        memory = model.encoder(src_tokens, source_lengths)
+        memory = model.encoder(src_tokens, src_mask)
         ys = torch.ones(1, 1).fill_(start_symbol).type_as(src_tokens.data)
-        print(ys)
         for i in range(100):
-            out = model.decoder(ys, torch.tensor([i+1]), memory, source_lengths)
+            out = model.decoder(Variable(ys), memory, src_mask, Variable(subsequent_mask(ys.size(1))))
             prob, logit = model.generator(out[:, -1])
-            print(prob.shape, logit.shape)
             # x, next_word = torch.max(prob, dim=1)
             # print(torch.topk(prob, 1).shape)
             next_word = torch.topk(prob, 1)[1].squeeze(1)
@@ -179,7 +187,6 @@ def decode(arg):
             next_word = next_word.data[0]
             ys = torch.cat([ys,
                             torch.ones(1, 1).type_as(src_tokens.data).fill_(next_word)], dim=1)
-            print(ys)
         return ys
 
     def batch_decode(model, src_tokens, src_len, tgt_tokens, target_lengths, start_symbol, max_len=200):
@@ -230,11 +237,8 @@ def decode(arg):
         return generated
 
     with torch.no_grad():
-        for i, data in data_iter:
-            data = [value.to(device) for value in data]
-            src_tokens, tgt_tokens, source_lengths, target_lengths = data
-            out = greedy_decode(model, src_tokens, source_lengths, tgt_tokens, target_lengths,
-                                start_symbol=vocab_tgt.sos_index)
+        for i, batch in enumerate(rebatch_data(pad_idx=1, batch=b) for b in data_loader):
+            out = greedy_decode(model, batch.src, batch.src_mask, start_symbol=vocab_tgt.sos_index)
             # out = batch_decode(model, src_tokens, source_lengths, tgt_tokens, target_lengths,
             #                    start_symbol=vocab_tgt.sos_index)
             print("Translation:", end="\t")
@@ -244,8 +248,8 @@ def decode(arg):
                 print(sym, end=" ")
             print()
             print("Target:", end="\t")
-            for i in range(0, tgt_tokens.size(1)):
-                sym = vocab_tgt.itos[tgt_tokens[0, i]]
+            for i in range(0, batch.trg.size(1)):
+                sym = vocab_tgt.itos[batch.trg[0, i]]
                 if sym == "<pad>": break
                 print(sym, end=" ")
             print()
