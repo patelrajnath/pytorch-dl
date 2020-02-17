@@ -119,6 +119,7 @@ def rebatch_data(pad_idx, batch):
     source, targets, lengths_source, lengths_target = batch
     return Batch(source, targets, pad_idx)
 
+
 class SimpleLossCompute:
     "A simple loss compute and train function."
 
