@@ -33,7 +33,11 @@ class SelfAttention(nn.Module):
         self.tokey = nn.Linear(self.emb_dim, self.dim_per_head * heads)
         self.unifyheads = nn.Linear(self.dim_per_head * heads, self.emb_dim)
 
-    def forward(self, tensor, mask, kv=None):
+    def forward(self, tensor, mask=None, kv=None):
+        if mask is not None:
+            # Same mask applied to all h heads.
+            mask = mask.unsqueeze(1)
+
         bs, qlen, dim = tensor.size()
         if kv is not None:
             kv = kv
@@ -45,23 +49,25 @@ class SelfAttention(nn.Module):
         heads = self.heads
         kv_bs, kv_qlen, kv_dim = kv.size()
 
-        query = self.toqueries(tensor).view(bs, qlen, heads, self.dim_per_head)
-        key = self.tokey(kv).view(kv_bs, kv_qlen, heads, self.dim_per_head)
-        value = self.tovalue(kv).view(kv_bs, kv_qlen, heads, self.dim_per_head)
-
-        query = query.transpose(1, 2).contiguous().view(bs * heads, qlen, self.dim_per_head)
-        key = key.transpose(1, 2).contiguous().view(kv_bs * heads, kv_qlen, self.dim_per_head)
-        value = value.transpose(1, 2).contiguous().view(kv_bs * heads, kv_qlen, self.dim_per_head)
+        query = self.toqueries(tensor).view(bs, qlen, heads, self.dim_per_head).transpose(1, 2)
+        key = self.tokey(kv).view(kv_bs, kv_qlen, heads, self.dim_per_head).transpose(1, 2)
+        value = self.tovalue(kv).view(kv_bs, kv_qlen, heads, self.dim_per_head).transpose(1, 2)
 
         query = query / (self.dim_per_head ** (1 / 4))
         key = key / (self.dim_per_head ** (1 / 4))
 
-        scores = torch.bmm(query, key.transpose(1, 2))
-        # if self.mask_future_steps:  # mask out the upper half of the dot matrix, excluding the diagonal
-        #     mask_(dot, maskval=float('-inf'), mask_diagonal=False)
+        scores = torch.matmul(query, key.transpose(-2, -1))
+
+        # query = query.transpose(1, 2).contiguous().view(bs * heads, qlen, self.dim_per_head)
+        # key = key.transpose(1, 2).contiguous().view(kv_bs * heads, kv_qlen, self.dim_per_head)
+        # value = value.transpose(1, 2).contiguous().view(kv_bs * heads, kv_qlen, self.dim_per_head)
+        # print(scores.shape)
         if mask is not None:
             scores = scores.masked_fill(mask == 0, -1e9)
-
+            
+        # print(scores.shape, mask.shape, tensor.shape)
+        # if self.mask_future_steps:  # mask out the upper half of the dot matrix, excluding the diagonal
+        #     mask_(dot, maskval=float('-inf'), mask_diagonal=False)
         # TODO check why the following masking fails
         # dot_mask = dot.contiguous().view(bs, heads, qlen, klen)
         # mask_reshape = (bs, 1, qlen, klen) if mask_att.dim() == 3 else (bs, 1, 1, klen)
@@ -69,9 +75,9 @@ class SelfAttention(nn.Module):
         # dot_mask.masked_fill_(mask_att, -float('inf'))
         # dot = dot_mask.contiguous().view(bs * heads, qlen, klen) # (bs, n_heads, qlen, klen)
 
-        dot = F.softmax(scores, dim=2)
+        dot = F.softmax(scores, dim=-1)
         # print(torch.sum(dot, dim=2))
-        out = torch.bmm(dot, value).view(bs, heads, qlen, self.dim_per_head)
+        out = torch.matmul(dot, value) #.view(bs, heads, qlen, self.dim_per_head)
         out = out.transpose(1, 2).contiguous().view(bs, qlen, heads * self.dim_per_head)
         return self.unifyheads(out)
         # print('key:', key.size(), 'value:', value.size(), 'query:', query.size(),
