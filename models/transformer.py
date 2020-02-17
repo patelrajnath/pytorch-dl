@@ -193,6 +193,7 @@ class TransformerEncoder(nn.Module):
         self.max_len = max_len
         self.token_emb = nn.Embedding(num_emb, emb_dim)
         self.pos_emb = PositionalEncoding(emb_dim, dropout)
+        self.norm = nn.LayerNorm(emb_dim)
 
         tblocks = []
         for _ in range(depth):
@@ -205,7 +206,7 @@ class TransformerEncoder(nn.Module):
 
         for i, layer in enumerate(self.tblocks):
             tensor = layer(tensor, mask)
-        return tensor
+        return self.norm(tensor)
 
 
 class TransformerDecoder(nn.Module):
@@ -215,6 +216,7 @@ class TransformerDecoder(nn.Module):
         self.token_emb = nn.Embedding(num_emb_target, emb_dim)
         self.pos_emb = PositionalEncoding(emb_dim, dropout)
         self.max_len = max_len
+        self.norm = nn.LayerNorm(emb_dim)
 
         self.tblocks_decoder = nn.ModuleList()
         for _ in range(depth):
@@ -226,7 +228,7 @@ class TransformerDecoder(nn.Module):
         tensor = self.pos_emb(tensor)
         for i, layer in enumerate(self.tblocks_decoder):
             tensor = layer(tensor, memory, src_mask, trg_mask)
-        return tensor
+        return self.norm(tensor)
 
 
 class Generator(nn.Module):
