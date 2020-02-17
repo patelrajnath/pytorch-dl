@@ -79,7 +79,7 @@ def train(arg):
         if p.dim() > 1:
             nn.init.xavier_uniform_(p)
 
-    load_model_state(os.path.join(model_dir, 'checkpoints_best.pt'), model, data_parallel=False)
+    start_epoch = load_model_state(os.path.join(model_dir, 'checkpoints_best.pt'), model, data_parallel=False)
     # criterion = LabelSmoothedCrossEntropy(tgt_vocab_size=vocab_size_tgt, label_smoothing=arg.label_smoothing,
     #                                       ignore_index=vocab_tgt.pad_index)
     # criterion = nn.CrossEntropyLoss()
@@ -105,7 +105,7 @@ def train(arg):
     def truncate_division(x, y):
         return round(x/y, 2)
     previous_best = inf
-    for epoch in range(1, arg.num_epochs):
+    for epoch in range(start_epoch, arg.num_epochs):
         start = time.time()
         total_tokens = 0
         total_loss = 0
