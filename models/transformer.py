@@ -90,8 +90,8 @@ class TransformerBlock(nn.Module):
 
         self.attention = SelfAttention(emb_dim, heads=heads, multihead_shared_emb=multihead_shared_emb)
 
-        self.norm1 = nn.LayerNorm(emb_dim)
-        self.norm2 = nn.LayerNorm(emb_dim)
+        self.norm1 = nn.LayerNorm(emb_dim, eps=1e-6)
+        self.norm2 = nn.LayerNorm(emb_dim, eps=1e-6)
 
         self.ff = nn.Sequential(
             nn.Linear(emb_dim, ff * emb_dim),
@@ -119,9 +119,9 @@ class TransformerBlockDecoder(nn.Module):
         self.attention_encoder_decoder = SelfAttention(emb_dim, heads=heads,
                                                        multihead_shared_emb=multihead_shared_emb)
 
-        self.norm1 = nn.LayerNorm(emb_dim)
-        self.norm2 = nn.LayerNorm(emb_dim)
-        self.norm3 = nn.LayerNorm(emb_dim)
+        self.norm1 = nn.LayerNorm(emb_dim, eps=1e-6)
+        self.norm2 = nn.LayerNorm(emb_dim, eps=1e-6)
+        self.norm3 = nn.LayerNorm(emb_dim, eps=1e-6)
 
         self.ff = nn.Sequential(
             nn.Linear(emb_dim, ff * emb_dim),
@@ -193,7 +193,7 @@ class TransformerEncoder(nn.Module):
         self.max_len = max_len
         self.token_emb = nn.Embedding(num_emb, emb_dim)
         self.pos_emb = PositionalEncoding(emb_dim, dropout)
-        self.norm = nn.LayerNorm(emb_dim)
+        self.norm = nn.LayerNorm(emb_dim, eps=1e-6)
 
         tblocks = []
         for _ in range(depth):
@@ -216,7 +216,7 @@ class TransformerDecoder(nn.Module):
         self.token_emb = nn.Embedding(num_emb_target, emb_dim)
         self.pos_emb = PositionalEncoding(emb_dim, dropout)
         self.max_len = max_len
-        self.norm = nn.LayerNorm(emb_dim)
+        self.norm = nn.LayerNorm(emb_dim, eps=1e-6)
 
         self.tblocks_decoder = nn.ModuleList()
         for _ in range(depth):
