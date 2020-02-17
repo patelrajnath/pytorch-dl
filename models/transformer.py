@@ -33,7 +33,7 @@ class SelfAttention(nn.Module):
         self.tokey = nn.Linear(self.emb_dim, self.dim_per_head * heads)
         self.unifyheads = nn.Linear(self.dim_per_head * heads, self.emb_dim)
 
-    def forward(self, tensor, mask_att, kv=None):
+    def forward(self, tensor, mask, kv=None):
         bs, qlen, dim = tensor.size()
         if kv is not None:
             kv = kv
@@ -56,9 +56,11 @@ class SelfAttention(nn.Module):
         query = query / (self.dim_per_head ** (1 / 4))
         key = key / (self.dim_per_head ** (1 / 4))
 
-        dot = torch.bmm(query, key.transpose(1, 2))
-        if self.mask_future_steps:  # mask out the upper half of the dot matrix, excluding the diagonal
-            mask_(dot, maskval=float('-inf'), mask_diagonal=False)
+        scores = torch.bmm(query, key.transpose(1, 2))
+        # if self.mask_future_steps:  # mask out the upper half of the dot matrix, excluding the diagonal
+        #     mask_(dot, maskval=float('-inf'), mask_diagonal=False)
+        if mask is not None:
+            scores = scores.masked_fill(mask == 0, -1e9)
 
         # TODO check why the following masking fails
         # dot_mask = dot.contiguous().view(bs, heads, qlen, klen)
@@ -67,7 +69,7 @@ class SelfAttention(nn.Module):
         # dot_mask.masked_fill_(mask_att, -float('inf'))
         # dot = dot_mask.contiguous().view(bs * heads, qlen, klen) # (bs, n_heads, qlen, klen)
 
-        dot = F.softmax(dot, dim=2)
+        dot = F.softmax(scores, dim=2)
         # print(torch.sum(dot, dim=2))
         out = torch.bmm(dot, value).view(bs, heads, qlen, self.dim_per_head)
         out = out.transpose(1, 2).contiguous().view(bs, qlen, heads * self.dim_per_head)
@@ -92,8 +94,8 @@ class TransformerBlock(nn.Module):
 
         self.do = nn.Dropout(dropout)
 
-    def forward(self, tensor, mask_att):
-        attended = self.attention(tensor, mask_att)
+    def forward(self, tensor, mask):
+        attended = self.attention(tensor, mask)
         tensor = self.norm1(attended + tensor)
         tensor = self.do(tensor)
         ff_out = self.ff(tensor)
@@ -128,18 +130,12 @@ class TransformerBlockDecoder(nn.Module):
 
         self.do = nn.Dropout(dropout)
 
-    def forward(self, tensor, mask_att, memory, source_lengths):
+    def forward(self, tensor, memory, src_mask, trg_mask):
 
-        masked_attention = self.attention(tensor, mask_att)
+        masked_attention = self.attention(tensor, trg_mask)
 
         # Add and layer normalize
         tensor = self.norm1(masked_attention + tensor)
-
-        # Create mask for encoded memory
-        src_mask = \
-            torch.arange(source_lengths.max(), dtype=torch.long, device=mask_att.device) < source_lengths[:, None]
-        # print(mask_att, src_mask)
-        # exit(0)
 
         encdec_attention = self.attention_encoder_decoder(tensor, src_mask, memory)
 
@@ -213,19 +209,12 @@ class TransformerEncoder(nn.Module):
             tblocks.append(TransformerBlock(emb_dim, heads, dropout=dropout, multihead_shared_emb=multihead_shared_emb))
         self.tblocks = nn.Sequential(*tblocks)
 
-    def forward(self, tokens, lengths):
-        # Create masks
-        bs, slen = tokens.size()
-        mask, mask_att = get_masks(slen, lengths)
-
+    def forward(self, tokens, mask):
         tensor = self.token_emb(tokens)
         tensor = self.pos_emb(tensor)
 
-        tensor *= mask.unsqueeze(-1).to(tensor.dtype)
-
         for i, layer in enumerate(self.tblocks):
-            tensor = layer(tensor, mask_att)
-            tensor *= mask.unsqueeze(-1).to(tensor.dtype)
+            tensor = layer(tensor, mask)
 
         return tensor
 
@@ -243,21 +232,11 @@ class TransformerDecoder(nn.Module):
             self.tblocks_decoder.append(TransformerBlockDecoder(emb_dim, heads, mask_future_steps, dropout=dropout,
                                                                 multihead_shared_emb=multihead_shared_emb))
 
-    def forward(self, tokens, lengths, memory, source_lengths):
-        bs, slen = tokens.size()
-
-        # TODO: Move mask creation in EncoderDecoder module and make the mask application if provided as at decoding
-        #  time both mask and att_mask should not be applied in both encoder and decoder
-        mask, mask_att = get_masks(slen, lengths, causal=True)
-
+    def forward(self, tokens, memory , src_mask, trg_mask):
         tensor = self.token_emb(tokens)
         tensor = self.pos_emb(tensor)
-
-        #  TODO: move the tensor to device to make it compatible with GPU
-        tensor *= mask.unsqueeze(-1).to(tensor.dtype)
         for i, layer in enumerate(self.tblocks_decoder):
-            tensor = layer(tensor, mask_att, memory, source_lengths)
-            tensor *= mask.unsqueeze(-1).to(tensor.dtype)
+            tensor = layer(tensor, memory, src_mask, trg_mask)
         return tensor
 
 
@@ -280,14 +259,14 @@ class TransformerEncoderDecoder(nn.Module):
                                           dropout=dropout, multihead_shared_emb=True)
         self.generator = Generator(k, num_emb_target)
 
-    def forward(self, src_tokens, source_lengths, tgt_tokens=None, target_lengths=None, predict=False):
-        enc = self.encoder(src_tokens, source_lengths)
+    def forward(self, src_tokens, src_mask, tgt_tokens=None, trg_mask=None, predict=False):
+        memory = self.encoder(src_tokens, src_mask)
         if tgt_tokens is not None:
             tgt_tokens = tgt_tokens
-            target_lengths = target_lengths
+            trg_mask = trg_mask
         else:
             tgt_tokens = src_tokens
-            target_lengths = source_lengths
-        enc_dec = self.decoder(tgt_tokens, target_lengths, enc, source_lengths)
+            trg_mask = src_mask
+        enc_dec = self.decoder(tgt_tokens, memory, src_mask, trg_mask)
         # return self.generator(enc_dec)
         return enc_dec

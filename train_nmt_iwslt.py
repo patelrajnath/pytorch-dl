@@ -84,25 +84,23 @@ def train(arg):
         total_tokens = 0
         total_loss = 0
         tokens = 0
-        for i, batch in enumerate(train_iter):
+        for i, batch in enumerate(rebatch(pad_idx, b) for b in train_iter):
             model.train()
-            bs = batch.batch_size
-            src, trg = batch.src.transpose(0, 1), batch.trg.transpose(0, 1)
-
-            tgt_lengths = (trg != pad_idx).data.sum(dim=1)
-            src_lengths = (src != pad_idx).data.sum(dim=1)
-
-            batch_ntokens = tgt_lengths.sum()
-            out = model(src, src_lengths, trg, tgt_lengths)
-            loss = compute_loss(out, trg, batch_ntokens)
+            # bs = batch.batch_size
+            # tgt_lengths = (trg != pad_idx).data.sum(dim=1)
+            # src_lengths = (src != pad_idx).data.sum(dim=1)
+            # batch_ntokens = tgt_lengths.sum()
+            # src, trg = batch.src.transpose(0, 1), batch.trg.transpose(0, 1)
+            out = model(batch.src, batch.src_mask, batch.trg, batch.trg_mask)
+            loss = compute_loss(out, batch.trg_y, batch.ntokens)
             total_loss += loss
-            total_tokens += batch_ntokens
-            tokens += batch_ntokens
+            total_tokens += batch.ntokens
+            tokens += batch.ntokens
 
             if i % arg.wait == 0 and i > 0:
                 elapsed = time.time() - start
                 print("Epoch %d Step: %d Loss: %f PPL: %f Tokens per Sec: %f" %
-                      (epoch, i, loss / batch_ntokens, math.exp(loss / batch_ntokens), tokens / elapsed))
+                      (epoch, i, loss / batch.ntokens, math.exp(loss / batch.ntokens), tokens / elapsed))
                 start = time.time()
                 tokens = 0
                 # checkpoint = "checkpoint.{}.".format(total_loss / total_tokens) + 'epoch' + str(epoch) + ".pt"
