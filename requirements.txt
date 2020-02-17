@@ -2,4 +2,6 @@ torch
 sentencepiece
 numpy
 torchvision
+torchtext
 tensorboard
+spacy
