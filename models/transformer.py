@@ -12,6 +12,7 @@ import torch.nn.functional as F
 
 from models.embeddings.mbert_embeddings import MBertEmbeddings
 from models.embeddings.position_emb import PositionalEncoding
+from models.embeddings.token_emb import Embeddings
 from models.utils.model_utils import d, get_masks, mask_
 
 
@@ -191,7 +192,7 @@ class TransformerEncoder(nn.Module):
     def __init__(self, emb_dim, heads, depth, num_emb, max_len, dropout=0.1, multihead_shared_emb=False):
         super().__init__()
         self.max_len = max_len
-        self.token_emb = nn.Embedding(num_emb, emb_dim)
+        self.token_emb = Embeddings(emb_dim, num_emb)
         self.pos_emb = PositionalEncoding(emb_dim, dropout)
         self.norm = nn.LayerNorm(emb_dim, eps=1e-6)
 
@@ -213,7 +214,7 @@ class TransformerDecoder(nn.Module):
     def __init__(self, emb_dim, heads, depth, num_emb_target, max_len, mask_future_steps=False,
                  dropout=0.1, multihead_shared_emb=False):
         super().__init__()
-        self.token_emb = nn.Embedding(num_emb_target, emb_dim)
+        self.token_emb = Embeddings(emb_dim, num_emb_target)
         self.pos_emb = PositionalEncoding(emb_dim, dropout)
         self.max_len = max_len
         self.norm = nn.LayerNorm(emb_dim, eps=1e-6)
