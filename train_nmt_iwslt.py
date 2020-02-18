@@ -86,7 +86,7 @@ def train(arg):
         total_tokens = 0
         total_loss = 0
         tokens = 0
-        for i, batch in enumerate(rebatch(pad_idx, b) for b in train_iter):
+        for i, batch in enumerate(rebatch(pad_idx, b, device=device) for b in train_iter):
             model.train()
             # bs = batch.batch_size
             # tgt_lengths = (trg != pad_idx).data.sum(dim=1)

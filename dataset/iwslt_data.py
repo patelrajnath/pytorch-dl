@@ -113,10 +113,10 @@ class Batch:
         return tgt_mask
 
 
-def rebatch(pad_idx, batch):
+def rebatch(pad_idx, batch, device='cpu'):
     "Fix order in torchtext to match ours"
     src, trg = batch.src.transpose(0, 1), batch.trg.transpose(0, 1)
-    return Batch(src, trg, pad_idx)
+    return Batch(src, trg, pad_idx, device)
 
 
 def rebatch_data(pad_idx, batch, device='cpu'):
