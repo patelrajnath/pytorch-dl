@@ -140,15 +140,15 @@ def train(arg):
 
 
 def decode(arg):
-    vocab_src = WordVocab.load_vocab("sample-data/{}.pkl".format(arg.source))
-    vocab_tgt = WordVocab.load_vocab("sample-data/{}.pkl".format(arg.target))
+    vocab_src = WordVocab.load_vocab("/home/raj/PycharmProjects/pytorch-dl_data/nmt/{}.pkl".format(arg.source))
+    vocab_tgt = WordVocab.load_vocab("/home/raj/PycharmProjects/pytorch-dl_data/nmt/{}.pkl".format(arg.target))
 
-    batch_size = 1
+    batch_size = 10
     k = arg.dim_model
     h = arg.num_heads
     depth = arg.depth
     max_size = arg.max_length
-    model_dir = "nmt"
+    model_dir = "/home/raj/PycharmProjects/pytorch-dl_data/nmt"
     input_file = arg.path
     data_set = TranslationDataSet(input_file, arg.source, arg.target, vocab_src, vocab_tgt, max_size,
                                   add_sos_and_eos=True)
@@ -162,9 +162,9 @@ def decode(arg):
                                       num_emb_target=vocab_size_tgt, max_len=max_size,
                                       mask_future_steps=True)
     # Initialize parameters with Glorot / fan_avg.
-    for p in model.parameters():
-        if p.dim() > 1:
-            nn.init.xavier_uniform_(p)
+    # for p in model.parameters():
+    #     if p.dim() > 1:
+    #         nn.init.xavier_uniform_(p)
 
     load_model_state(os.path.join(model_dir, 'checkpoints_best.pt'), model, data_parallel=False)
     cuda_condition = torch.cuda.is_available() and not arg.cpu
@@ -191,11 +191,11 @@ def decode(arg):
                             torch.ones(1, 1).type_as(src_tokens.data).fill_(next_word)], dim=1)
         return ys
 
-    def batch_decode(model, src_tokens, src_len, tgt_tokens, target_lengths, start_symbol, max_len=200):
+    def batch_decode(model, src_tokens, src_mask, src_len, max_len=60):
         # input batch
         bs = len(src_len)
 
-        src_enc = model.encoder(src_tokens, src_len)
+        src_enc = model.encoder(src_tokens, src_mask)
         assert src_enc.size(0) == bs
 
         # generated sentences
@@ -206,14 +206,16 @@ def decode(arg):
         cur_len = 1
         gen_len = src_len.clone().fill_(1)
         unfinished_sents = src_len.clone().fill_(1)
+        print(unfinished_sents)
 
         while cur_len < max_len:
+            print(generated[:cur_len])
             # compute word scores
             tensor = model.decoder(
                 tokens=generated[:cur_len].transpose(0, 1),
-                lengths=gen_len,
                 memory=src_enc,
-                source_lengths=src_len,
+                src_mask=src_mask,
+                trg_mask=Variable(subsequent_mask(cur_len).type_as(src_tokens.data)),
             )
             # print(tensor.shape)
             tensor = tensor.data[:, -1].type_as(src_enc)  # (bs, dim)
@@ -226,6 +228,7 @@ def decode(arg):
             # print(next_words, generated[:cur_len])
 
             # update generations / lengths / finished sentences / current length
+            # print(next_words * unfinished_sents)
             generated[cur_len] = next_words * unfinished_sents + vocab_tgt.pad_index * (1 - unfinished_sents)
             gen_len.add_(unfinished_sents)
             unfinished_sents.mul_(next_words.ne(vocab_tgt.eos_index).long())
@@ -236,13 +239,12 @@ def decode(arg):
             #                                             src_enc.size(), tensor.size(), (1, bs, self.dim))
             # tensor = tensor.data[-1, :, :].type_as(src_enc)  # (bs, dim)
             # scores = self.pred_layer.get_scores(tensor)      # (bs, n_words)
-        return generated
+        return generated.transpose(0, 1)
 
     with torch.no_grad():
         for k, batch in enumerate(rebatch_data(pad_idx=1, batch=b) for b in data_loader):
-            out = greedy_decode(model, batch.src, batch.src_mask, start_symbol=vocab_tgt.sos_index)
-            # out = batch_decode(model, src_tokens, source_lengths, tgt_tokens, target_lengths,
-            #                    start_symbol=vocab_tgt.sos_index)
+            # out = greedy_decode(model, batch.src, batch.src_mask, start_symbol=vocab_tgt.sos_index)
+            out = batch_decode(model, batch.src, batch.src_mask, batch.src_len)
             print("Translation:", end="\t")
             for i in range(0, out.size(1)):
                 sym = vocab_tgt.itos[out[0, i]]
@@ -351,5 +353,5 @@ if __name__ == "__main__":
 
     print('OPTIONS ', options)
 
-    train(options)
-    # decode(options)
+    # train(options)
+    decode(options)
