@@ -5,7 +5,6 @@ pytorch-dl
 Created by raj at 10:20 
 Date: February 09, 2020	
 """
-import torch
 from torch import nn
 import torch.nn.functional as F
 import torchvision
@@ -13,8 +12,8 @@ from torch.optim import Adam
 from torch.utils.data.dataloader import DataLoader
 from torchvision.datasets import FashionMNIST
 import torch.utils.data
-
 from models.utils.fconv_layer_norm import LayerNormConv2d
+from torch.utils.tensorboard import SummaryWriter
 
 
 class CNN(nn.Module):
@@ -101,7 +100,9 @@ validation_loader = DataLoader(valid_data, batch_size=100)
 cnn = CNN()
 optimizer = Adam(params=cnn.parameters(), lr=0.01)
 
-for i in range(50):
+tb = SummaryWriter()
+
+for epoch in range(10):
     total_loss = 0
     total_correct = 0.0
     for batch in train_loader:
@@ -126,4 +127,8 @@ for i in range(50):
             total_correct += get_num_correct(pred, labels)
         print(total_correct)
         print(total_correct/len(valid_data))
-
+        # Add tensorboard
+        tb.add_scalar("Total Correct", total_correct, epoch)
+        tb.add_scalar("Accuracy", total_correct/len(valid_data), epoch)
+        tb.add_scalar("Loss", total_loss, epoch)
+tb.close()

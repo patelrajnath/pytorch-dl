@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 pytorch-dl
-Created by raj at 11:12 
-Date: January 26, 2020	
+Created by raj at 15:47 
+Date: February 15, 2020	
 """
 import math
 import os
@@ -11,68 +11,43 @@ from argparse import ArgumentParser
 from math import inf
 import time
 
-from torch.autograd import Variable
-
-from criterion.label_smoothed_cross_entropy import LabelSmoothedCrossEntropy
-from dataset.data_loader_translation import TranslationDataSet, BySequenceLengthSampler
-from dataset.iwslt_data import rebatch_data, subsequent_mask, LabelSmoothing, NoamOpt, SimpleLossCompute
-from models.decoding import batch_decode, greedy_decode, generate_beam
-from models.transformer import TransformerEncoderDecoder
-import torch.nn.functional as F
 import torch
 import tqdm
 from torch import nn
-from torch.optim import Adam, lr_scheduler
-from torch.utils.data import DataLoader
+from torch.autograd import Variable
 
-from dataset.vocab import WordVocab
-from models.utils.model_utils import save_state, load_model_state, get_masks, my_collate, get_perplexity
+from dataset.iwslt_data import get_data, MyIterator, batch_size_fn, rebatch, SimpleLossCompute, LabelSmoothing, \
+    subsequent_mask
+
+from dataset.iwslt_data import NoamOpt
+from models.decoding import greedy_decode
+from models.transformer import TransformerEncoderDecoder
+from models.utils.model_utils import save_state, load_model_state, get_perplexity
 from optim.lr_warm_up import GradualWarmupScheduler
 
 
 def train(arg):
-    input_file = arg.path
-    for lang in (arg.source, arg.target):
-        with open(input_file + '.' + lang) as f:
-            vocab = WordVocab(f)
-            vocab.save_vocab("sample-data/{}.pkl".format(lang))
+    train, val, test, SRC, TGT = get_data()
 
-    vocab_src = WordVocab.load_vocab("sample-data/{}.pkl".format(arg.source))
-    vocab_tgt = WordVocab.load_vocab("sample-data/{}.pkl".format(arg.target))
+    pad_idx = TGT.vocab.stoi["<blank>"]
 
-    lr_warmup = arg.lr_warmup
-    batch_size = arg.batch_size
-    k = arg.dim_model
-    h = arg.num_heads
+    BATCH_SIZE = arg.batch_size
+    model_dim = arg.dim_model
+    heads = arg.num_heads
     depth = arg.depth
-    max_size=arg.max_length
-    model_dir = "nmt"
-    try:
-        os.makedirs(model_dir)
-    except OSError:
-        pass
+    max_len = arg.max_length
 
-    previous_best = inf
+    n_batches = math.ceil(len(train) / BATCH_SIZE)
 
-    data_set = TranslationDataSet(input_file, arg.source, arg.target, vocab_src, vocab_tgt, max_size,
-                                  add_sos_and_eos=True)
+    train_iter = MyIterator(train, batch_size=BATCH_SIZE, device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+                            repeat=False, sort_key=lambda x: (len(x.src), len(x.trg)),
+                            batch_size_fn=batch_size_fn, train=True)
+    valid_iter = MyIterator(val, batch_size=BATCH_SIZE, device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+                            repeat=False, sort_key=lambda x: (len(x.src), len(x.trg)),
+                            batch_size_fn=batch_size_fn, train=True)
 
-    # bucket_boundaries = [50, 100, 125, 150, 175, 200, 250, 300]
-    # batch_sizes = 32
-    # sampler = BySequenceLengthSampler(data_set, bucket_boundaries, batch_sizes)
-
-    data_loader = DataLoader(data_set, batch_size=batch_size,
-                             collate_fn=my_collate,
-                             num_workers=0,
-                             drop_last=False,
-                             pin_memory=False,
-                             shuffle=True
-                             )
-    vocab_size_src = len(vocab_src.stoi)
-    vocab_size_tgt = len(vocab_tgt.stoi)
-
-    model = TransformerEncoderDecoder(k, h, dropout=arg.dropout, depth=depth, num_emb=vocab_size_src,
-                                      num_emb_target=vocab_size_tgt, max_len=max_size,
+    model = TransformerEncoderDecoder(k=model_dim, heads=heads, dropout=arg.dropout, depth=depth, num_emb=len(SRC.vocab),
+                                      num_emb_target=len(TGT.vocab), max_len=max_len,
                                       mask_future_steps=True)
 
     # Initialize parameters with Glorot / fan_avg.
@@ -80,18 +55,15 @@ def train(arg):
         if p.dim() > 1:
             nn.init.xavier_uniform_(p)
 
-    start_epoch = load_model_state(os.path.join(model_dir, 'checkpoints_best.pt'), model, data_parallel=False)
-    # criterion = LabelSmoothedCrossEntropy(tgt_vocab_size=vocab_size_tgt, label_smoothing=arg.label_smoothing,
-    #                                       ignore_index=vocab_tgt.pad_index)
-    # criterion = nn.CrossEntropyLoss()
-    # optimizer = Adam(params=model.parameters(), lr=arg.lr, betas=(0.9, 0.999), eps=1e-8)
-    # scheduler_cosine = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, arg.num_epochs)
-    # scheduler_warmup = GradualWarmupScheduler(optimizer, multiplier=8, total_epoch=lr_warmup,
-    #                                           after_scheduler=scheduler_cosine)
-
-    criterion = LabelSmoothing(size=len(vocab_tgt.stoi), padding_idx=1, smoothing=0.1)
-    optimizer = NoamOpt(arg.dim_model, 1, 2000, torch.optim.Adam(model.parameters(), lr=0, betas=(0.9, 0.98), eps=1e-9))
+    criterion = LabelSmoothing(size=len(TGT.vocab), padding_idx=pad_idx, smoothing=0.1)
+    optimizer = NoamOpt(model_dim, 1, 2000, torch.optim.Adam(model.parameters(), lr=0, betas=(0.9, 0.98), eps=1e-9))
     compute_loss = SimpleLossCompute(model.generator, criterion, optimizer)
+
+    # criterion = nn.CrossEntropyLoss()
+    # optimizer = Adam(params=model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-8)
+    # scheduler_cosine = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 20)
+    # scheduler_warmup = GradualWarmupScheduler(optimizer, multiplier=8, total_epoch=1000,
+    #                                           after_scheduler=scheduler_cosine)
 
     cuda_condition = torch.cuda.is_available() and not arg.cpu
     device = torch.device("cuda:0" if cuda_condition else "cpu")
@@ -103,19 +75,25 @@ def train(arg):
         print("Using %d GPUS for BERT" % torch.cuda.device_count())
         model = nn.DataParallel(model, device_ids=[0,1,2,3])
 
-    def truncate_division(x, y):
-        return round(x/y, 2)
+    model_dir = "transformer-model"
+    try:
+        os.makedirs(model_dir)
+    except OSError:
+        pass
     previous_best = inf
-    for epoch in range(start_epoch, arg.num_epochs):
+
+    for epoch in range(1, arg.num_epochs):
         start = time.time()
         total_tokens = 0
         total_loss = 0
         tokens = 0
-        # Setting the tqdm progress bar
-        # data_iter = tqdm.tqdm(enumerate(data_loader),
-        #                       desc="Running epoch: {}".format(epoch),
-        #                       total=len(data_loader))
-        for i, batch in enumerate(rebatch_data(pad_idx=1, batch=b, device=device) for b in data_loader):
+        for i, batch in enumerate(rebatch(pad_idx, b, device=device) for b in train_iter):
+            model.train()
+            # bs = batch.batch_size
+            # tgt_lengths = (trg != pad_idx).data.sum(dim=1)
+            # src_lengths = (src != pad_idx).data.sum(dim=1)
+            # batch_ntokens = tgt_lengths.sum()
+            # src, trg = batch.src.transpose(0, 1), batch.trg.transpose(0, 1)
             out = model(batch.src, batch.src_mask, batch.trg, batch.trg_mask)
             loss = compute_loss(out, batch.trg_y, batch.ntokens)
             total_loss += loss
@@ -140,76 +118,64 @@ def train(arg):
 
 
 def decode(arg):
-    model_dir = "/home/raj/PycharmProjects/models"
-    vocab_src = WordVocab.load_vocab("{}/{}.pkl".format(model_dir, arg.source))
-    vocab_tgt = WordVocab.load_vocab("{}/{}.pkl".format(model_dir, arg.target))
-    batch_size = 1
-    k = arg.dim_model
-    h = arg.num_heads
+    train, val, test, SRC, TGT = get_data()
+    pad_idx = TGT.vocab.stoi["<blank>"]
+    BATCH_SIZE = arg.batch_size
+    model_dim = arg.dim_model
+    heads = arg.num_heads
     depth = arg.depth
-    max_size = arg.max_length
-    input_file = arg.path
-    data_set = TranslationDataSet(input_file, arg.source, arg.target, vocab_src, vocab_tgt, max_size,
-                                  add_sos_and_eos=True)
+    max_len = arg.max_length
+    model_dir = "transformer-model"
 
-    data_loader = DataLoader(data_set,
-                             batch_size=batch_size,
-                             collate_fn=my_collate,
-                             num_workers=0,
-                             drop_last=False,
-                             pin_memory=False,)
-    vocab_size_src = len(vocab_src.stoi)
-    vocab_size_tgt = len(vocab_tgt.stoi)
+    n_batches = math.ceil(len(train) / BATCH_SIZE)
 
-    model = TransformerEncoderDecoder(k, h, depth=depth, num_emb=vocab_size_src,
-                                      num_emb_target=vocab_size_tgt, max_len=max_size,
+    train_iter = MyIterator(train, batch_size=BATCH_SIZE,
+                            device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+                            repeat=False, sort_key=lambda x: (len(x.src), len(x.trg)),
+                            batch_size_fn=batch_size_fn, train=True)
+    valid_iter = MyIterator(val, batch_size=BATCH_SIZE,
+                            device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+                            repeat=False, sort_key=lambda x: (len(x.src), len(x.trg)),
+                            batch_size_fn=batch_size_fn, train=True)
+
+    model = TransformerEncoderDecoder(k=model_dim, heads=heads, dropout=arg.dropout, depth=depth,
+                                      num_emb=len(SRC.vocab),
+                                      num_emb_target=len(TGT.vocab), max_len=max_len,
                                       mask_future_steps=True)
     # Initialize parameters with Glorot / fan_avg.
-    # for p in model.parameters():
-    #     if p.dim() > 1:
-    #         nn.init.xavier_uniform_(p)
+    for p in model.parameters():
+        if p.dim() > 1:
+            nn.init.xavier_uniform_(p)
 
-    load_model_state(os.path.join(model_dir, 'checkpoints_best.pt'), model, data_parallel=False)
+    load_model_state(os.path.join(model_dir, 'checkpoints_best.pt'), model, data_parallel=True)
+    model.eval()
+
     cuda_condition = torch.cuda.is_available() and not arg.cpu
     device = torch.device("cuda:0" if cuda_condition else "cpu")
 
     if cuda_condition:
         model.cuda()
 
-    model.eval()
     # Setting the tqdm progress bar
     # data_iter = tqdm.tqdm(enumerate(data_loader),
     #                       desc="Decoding",
     #                       total=len(data_loader))
 
     with torch.no_grad():
-        for l, batch in enumerate(rebatch_data(pad_idx=1, batch=b, device=device) for b in data_loader):
-            out = greedy_decode(model, batch.src, batch.src_mask, start_symbol=vocab_tgt.sos_index)
-            # out = batch_decode(model, batch.src, batch.src_mask, batch.src_len,
-            #                    pad_index=vocab_tgt.pad_index,
-            #                    sos_index=vocab_tgt.sos_index,
-            #                    eos_index=vocab_tgt.eos_index)
-
-            # out, lengths = generate_beam(model, batch.src, batch.src_mask, batch.src_len,
-            #                              pad_index = vocab_tgt.pad_index,
-            #                              sos_index = vocab_tgt.sos_index,
-            #                              eos_index = vocab_tgt.eos_index,
-            #                              emb_dim=k,
-            #                              beam_size=5,
-            #                              length_penalty=False,
-            #                              early_stopping=False
-            #                              )
-
+        for k, batch in enumerate(valid_iter):
+            src = batch.src.transpose(0, 1)[:1]
+            src_mask = (src != SRC.vocab.stoi["<blank>"]).unsqueeze(-2)
+            out = greedy_decode(model, src, src_mask, start_symbol=TGT.vocab.stoi["<sos>"])
             print("Translation:", end="\t")
-            for i in range(0, out.size(1)):
-                sym = vocab_tgt.itos[out[0, i]]
+            for i in range(1, out.size(1)):
+                sym = TGT.vocab.itos[out[0, i]]
                 if sym == "<eos>": break
                 print(sym, end=" ")
             print()
             print("Target:", end="\t")
-            for i in range(0, batch.trg.size(1)):
-                sym = vocab_tgt.itos[batch.trg[0, i]]
-                if sym == "<pad>": break
+            for i in range(1, batch.trg.size(0)):
+                sym = TGT.vocab.itos[batch.trg.data[i, 0]]
+                if sym == "<eos>": break
                 print(sym, end=" ")
             print()
             break
@@ -226,7 +192,7 @@ if __name__ == "__main__":
     parser.add_argument("-b", "--batch-size",
                         dest="batch_size",
                         help="The batch size.",
-                        default=4, type=int)
+                        default=4000, type=int)
 
     parser.add_argument("--learn-rate",
                         dest="lr",
@@ -308,5 +274,5 @@ if __name__ == "__main__":
 
     print('OPTIONS ', options)
 
-    # train(options)
-    decode(options)
+    train(options)
+    # decode(options)
