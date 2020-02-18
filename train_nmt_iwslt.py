@@ -181,13 +181,13 @@ def decode(arg):
             print("Translation:", end="\t")
             for i in range(1, out.size(1)):
                 sym = TGT.vocab.itos[out[0, i]]
-                if sym == "</s>": break
+                if sym == "<eos>": break
                 print(sym, end=" ")
             print()
             print("Target:", end="\t")
             for i in range(1, batch.trg.size(0)):
                 sym = TGT.vocab.itos[batch.trg.data[i, 0]]
-                if sym == "</s>": break
+                if sym == "<eos>": break
                 print(sym, end=" ")
             print()
             break
