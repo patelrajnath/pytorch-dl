@@ -140,15 +140,14 @@ def train(arg):
 
 
 def decode(arg):
-    vocab_src = WordVocab.load_vocab("/home/raj/PycharmProjects/pytorch-dl_data/nmt/{}.pkl".format(arg.source))
-    vocab_tgt = WordVocab.load_vocab("/home/raj/PycharmProjects/pytorch-dl_data/nmt/{}.pkl".format(arg.target))
-
+    model_dir = "nmt"
+    vocab_src = WordVocab.load_vocab("{}/{}.pkl".format(model_dir, arg.source))
+    vocab_tgt = WordVocab.load_vocab("{}/{}.pkl".format(model_dir, arg.target))
     batch_size = 1
     k = arg.dim_model
     h = arg.num_heads
     depth = arg.depth
     max_size = arg.max_length
-    model_dir = "/home/raj/PycharmProjects/pytorch-dl_data/nmt"
     input_file = arg.path
     data_set = TranslationDataSet(input_file, arg.source, arg.target, vocab_src, vocab_tgt, max_size,
                                   add_sos_and_eos=True)
@@ -358,5 +357,5 @@ if __name__ == "__main__":
 
     print('OPTIONS ', options)
 
-    # train(options)
-    decode(options)
+    train(options)
+    # decode(options)
