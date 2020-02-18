@@ -14,12 +14,14 @@ import time
 import torch
 import tqdm
 from torch import nn
+from torch.autograd import Variable
 
-from dataset.iwslt_data import get_data, MyIterator, batch_size_fn, rebatch, SimpleLossCompute, LabelSmoothing
+from dataset.iwslt_data import get_data, MyIterator, batch_size_fn, rebatch, SimpleLossCompute, LabelSmoothing, \
+    subsequent_mask
 
 from dataset.iwslt_data import NoamOpt
 from models.transformer import TransformerEncoderDecoder
-from models.utils.model_utils import save_state
+from models.utils.model_utils import save_state, load_model_state
 from optim.lr_warm_up import GradualWarmupScheduler
 
 
@@ -112,6 +114,79 @@ def train(arg):
         if previous_best > loss_average:
             save_state(os.path.join(model_dir, 'checkpoints_best.pt'), model, criterion, optimizer, epoch)
             previous_best = loss_average
+
+
+def decode(arg):
+    train, val, test, SRC, TGT = get_data()
+    pad_idx = TGT.vocab.stoi["<blank>"]
+    BATCH_SIZE = arg.batch_size
+    model_dim = arg.dim_model
+    heads = arg.num_heads
+    depth = arg.depth
+    max_len = arg.max_length
+    model_dir = "transformer-model"
+
+    n_batches = math.ceil(len(train) / BATCH_SIZE)
+
+    train_iter = MyIterator(train, batch_size=BATCH_SIZE,
+                            device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+                            repeat=False, sort_key=lambda x: (len(x.src), len(x.trg)),
+                            batch_size_fn=batch_size_fn, train=True)
+    valid_iter = MyIterator(val, batch_size=BATCH_SIZE,
+                            device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+                            repeat=False, sort_key=lambda x: (len(x.src), len(x.trg)),
+                            batch_size_fn=batch_size_fn, train=True)
+
+    model = TransformerEncoderDecoder(k=model_dim, heads=heads, dropout=arg.dropout, depth=depth,
+                                      num_emb=len(SRC.vocab),
+                                      num_emb_target=len(TGT.vocab), max_len=max_len,
+                                      mask_future_steps=True)
+
+    # Initialize parameters with Glorot / fan_avg.
+    for p in model.parameters():
+        if p.dim() > 1:
+            nn.init.xavier_uniform_(p)
+
+    load_model_state(os.path.join(model_dir, 'checkpoints_best.pt'), model, data_parallel=True)
+    cuda_condition = torch.cuda.is_available() and not arg.cpu
+    device = torch.device("cuda:0" if cuda_condition else "cpu")
+
+    if cuda_condition:
+        model.cuda()
+
+    # Setting the tqdm progress bar
+    # data_iter = tqdm.tqdm(enumerate(data_loader),
+    #                       desc="Decoding",
+    #                       total=len(data_loader))
+
+    def greedy_decode(model, src_tokens, src_mask, start_symbol, max=100):
+        memory = model.encoder(src_tokens, src_mask)
+        ys = torch.ones(1, 1).fill_(start_symbol).type_as(src_tokens.data)
+        for i in range(max):
+            out = model.decoder(Variable(ys), memory, src_mask, Variable(subsequent_mask(ys.size(1))))
+            prob, logit = model.generator(out[:, -1])
+            _, next_word = torch.max(prob, dim=1)
+            next_word = next_word.data[0]
+            ys = torch.cat([ys,
+                            torch.ones(1, 1).type_as(src_tokens.data).fill_(next_word)], dim=1)
+        return ys
+
+    with torch.no_grad():
+        for k, batch in enumerate(rebatch(pad_idx=1, batch=b) for b in valid_iter):
+            out = greedy_decode(model, batch.src, batch.src_mask, start_symbol=TGT.vocab.stoi["<sos>"])
+            print("Translation:", end="\t")
+            for i in range(1, out.size(1)):
+                sym = TGT.vocab.itos[out[0, i]]
+                if sym == "</s>": break
+                print(sym, end=" ")
+            print()
+            print("Target:", end="\t")
+            for i in range(1, batch.trg.size(0)):
+                sym = TGT.vocab.itos[batch.trg.data[i, 0]]
+                if sym == "</s>": break
+                print(sym, end=" ")
+            print()
+            break
 
 
 if __name__ == "__main__":
