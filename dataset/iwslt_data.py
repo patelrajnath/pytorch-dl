@@ -103,7 +103,7 @@ class Batch:
             self.trg_y = trg[:, 1:].to(device)
             self.trg_mask = \
                 self.make_std_mask(self.trg, pad).to(device)
-            self.ntokens = (self.trg_y != pad).data.sum().to(device)
+            self.ntokens = (self.trg_y != pad).data.sum()
 
     @staticmethod
     def make_std_mask(tgt, pad):
