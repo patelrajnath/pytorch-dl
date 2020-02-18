@@ -213,7 +213,7 @@ def decode(arg):
         # print(unfinished_sents)
 
         while cur_len < max_len:
-            print(generated[:cur_len])
+            # print(generated[:cur_len])
             # compute word scores
             tensor = model.decoder(
                 tokens=Variable(generated[:cur_len].transpose(0, 1)),
