@@ -90,17 +90,17 @@ def subsequent_mask(size):
 class Batch:
     "Object for holding a batch of utils with mask during training."
 
-    def __init__(self, src, trg=None, pad=0, src_len=None, trg_len=None):
-        self.src = src
-        self.src_len = src_len
-        self.trg_len = trg_len
-        self.src_mask = (src != pad).unsqueeze(-2)
+    def __init__(self, src, trg=None, pad=0, src_len=None, trg_len=None, device='cpu'):
+        self.src = src.to(device)
+        self.src_len = src_len.to(device)
+        self.trg_len = trg_len.to(device)
+        self.src_mask = (src != pad).unsqueeze(-2).to(device)
         if trg is not None:
-            self.trg = trg[:, :-1]
-            self.trg_y = trg[:, 1:]
+            self.trg = trg[:, :-1].to(device)
+            self.trg_y = trg[:, 1:].to(device)
             self.trg_mask = \
-                self.make_std_mask(self.trg, pad)
-            self.ntokens = (self.trg_y != pad).data.sum()
+                self.make_std_mask(self.trg, pad).to(device)
+            self.ntokens = (self.trg_y != pad).data.sum().to(device)
 
     @staticmethod
     def make_std_mask(tgt, pad):
@@ -116,10 +116,10 @@ def rebatch(pad_idx, batch):
     return Batch(src, trg, pad_idx)
 
 
-def rebatch_data(pad_idx, batch):
+def rebatch_data(pad_idx, batch, device='cpu'):
     "Fix order in torchtext to match ours"
     source, targets, lengths_source, lengths_target = batch
-    return Batch(source, targets, pad_idx, src_len=lengths_source, trg_len=lengths_target)
+    return Batch(source, targets, pad_idx, src_len=lengths_source, trg_len=lengths_target, device=device)
 
 
 class SimpleLossCompute:

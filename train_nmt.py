@@ -27,7 +27,7 @@ from torch.utils.data import DataLoader
 from dataset.vocab import WordVocab
 from models.utils.model_utils import save_state, load_model_state, get_masks, my_collate, get_perplexity
 from optim.lr_warm_up import GradualWarmupScheduler
-torch.random.seed()
+
 
 def train(arg):
     input_file = arg.path
@@ -114,8 +114,7 @@ def train(arg):
         # data_iter = tqdm.tqdm(enumerate(data_loader),
         #                       desc="Running epoch: {}".format(epoch),
         #                       total=len(data_loader))
-        for i, batch in enumerate(rebatch_data(pad_idx=1, batch=b) for b in data_loader):
-
+        for i, batch in enumerate(rebatch_data(pad_idx=1, batch=b, device=device) for b in data_loader):
             out = model(batch.src, batch.src_mask, batch.trg, batch.trg_mask)
             loss = compute_loss(out, batch.trg_y, batch.ntokens)
             total_loss += loss
