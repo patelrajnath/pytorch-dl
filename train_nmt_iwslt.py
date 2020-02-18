@@ -20,6 +20,7 @@ from dataset.iwslt_data import get_data, MyIterator, batch_size_fn, rebatch, Sim
     subsequent_mask
 
 from dataset.iwslt_data import NoamOpt
+from models.decoding import greedy_decode
 from models.transformer import TransformerEncoderDecoder
 from models.utils.model_utils import save_state, load_model_state, get_perplexity
 from optim.lr_warm_up import GradualWarmupScheduler
@@ -159,19 +160,6 @@ def decode(arg):
     # data_iter = tqdm.tqdm(enumerate(data_loader),
     #                       desc="Decoding",
     #                       total=len(data_loader))
-
-    def greedy_decode(model, src_tokens, src_mask, start_symbol, max=100):
-        memory = model.encoder(src_tokens, src_mask)
-        ys = torch.ones(1, 1).fill_(start_symbol).type_as(src_tokens.data)
-        for i in range(max):
-            out = model.decoder(Variable(ys), memory, src_mask,
-                                Variable(subsequent_mask(ys.size(1)).type_as(src_tokens.data)))
-            prob, logit = model.generator(out[:, -1])
-            _, next_word = torch.max(prob, dim=1)
-            next_word = next_word.data[0]
-            ys = torch.cat([ys,
-                            torch.ones(1, 1).type_as(src_tokens.data).fill_(next_word)], dim=1)
-        return ys
 
     with torch.no_grad():
         for k, batch in enumerate(valid_iter):

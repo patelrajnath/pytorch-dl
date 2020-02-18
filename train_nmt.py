@@ -16,6 +16,7 @@ from torch.autograd import Variable
 from criterion.label_smoothed_cross_entropy import LabelSmoothedCrossEntropy
 from dataset.data_loader_translation import TranslationDataSet, BySequenceLengthSampler
 from dataset.iwslt_data import rebatch_data, subsequent_mask, LabelSmoothing, NoamOpt, SimpleLossCompute
+from models.decoding import batch_decode, greedy_decode, generate_beam
 from models.transformer import TransformerEncoderDecoder
 import torch.nn.functional as F
 import torch
@@ -139,7 +140,7 @@ def train(arg):
 
 
 def decode(arg):
-    model_dir = "nmt"
+    model_dir = "/home/raj/PycharmProjects/models"
     vocab_src = WordVocab.load_vocab("{}/{}.pkl".format(model_dir, arg.source))
     vocab_tgt = WordVocab.load_vocab("{}/{}.pkl".format(model_dir, arg.target))
     batch_size = 1
@@ -181,73 +182,24 @@ def decode(arg):
     #                       desc="Decoding",
     #                       total=len(data_loader))
 
-    def greedy_decode(model, src_tokens, src_mask, start_symbol):
-        memory = model.encoder(src_tokens, src_mask)
-        ys = torch.ones(1, 1).fill_(start_symbol).type_as(src_tokens.data)
-        for i in range(100):
-            out = model.decoder(Variable(ys), memory, src_mask,
-                                Variable(subsequent_mask(ys.size(1)).type_as(src_tokens.data)))
-            prob, logit = model.generator(out[:, -1])
-            _, next_word = torch.max(prob, dim=1)
-            next_word = next_word.data[0]
-            ys = torch.cat([ys,
-                            torch.ones(1, 1).type_as(src_tokens.data).fill_(next_word)], dim=1)
-        return ys
-
-    def batch_decode(model, src_tokens, src_mask, src_len, max_len=60):
-        # input batch
-        bs = len(src_len)
-
-        src_enc = model.encoder(src_tokens, src_mask)
-        assert src_enc.size(0) == bs
-
-        # generated sentences
-        generated = src_len.new(max_len, bs)  # upcoming output
-        generated.fill_(vocab_tgt.pad_index)  # fill upcoming ouput with <PAD>
-        generated[0].fill_(vocab_tgt.sos_index)  # fill 0th index with <SOS>
-
-        cur_len = 1
-        gen_len = src_len.clone().fill_(1)
-        unfinished_sents = src_len.clone().fill_(1)
-        # print(unfinished_sents)
-
-        while cur_len < max_len:
-            # print(generated[:cur_len])
-            # compute word scores
-            tensor = model.decoder(
-                tokens=Variable(generated[:cur_len].transpose(0, 1)),
-                memory=src_enc,
-                src_mask=src_mask,
-                trg_mask=Variable(subsequent_mask(cur_len).type_as(src_tokens.data)),
-            )
-            # print(tensor.shape)
-            tensor = tensor.data[:, -1].type_as(src_enc)  # (bs, dim)
-            # print(tensor.shape)
-            prob, logit = model.generator(tensor)
-            # print(prob.shape, logit.shape)
-            # x, next_word = torch.max(prob, dim=1)
-            next_words = torch.topk(prob, 1)[1].squeeze(1)
-            # print(next_words)
-            # print(next_words, generated[:cur_len])
-
-            # update generations / lengths / finished sentences / current length
-            # print(next_words * unfinished_sents)
-            generated[cur_len] = next_words * unfinished_sents + vocab_tgt.pad_index * (1 - unfinished_sents)
-            gen_len.add_(unfinished_sents)
-            unfinished_sents.mul_(next_words.ne(vocab_tgt.eos_index).long())
-            cur_len = cur_len + 1
-
-            # break
-            # assert tensor.size() == (1, bs, self.dim), (cur_len, max_len,
-            #                                             src_enc.size(), tensor.size(), (1, bs, self.dim))
-            # tensor = tensor.data[-1, :, :].type_as(src_enc)  # (bs, dim)
-            # scores = self.pred_layer.get_scores(tensor)      # (bs, n_words)
-        return generated.transpose(0, 1)
-
     with torch.no_grad():
-        for k, batch in enumerate(rebatch_data(pad_idx=1, batch=b, device=device) for b in data_loader):
-            # out = greedy_decode(model, batch.src, batch.src_mask, start_symbol=vocab_tgt.sos_index)
-            out = batch_decode(model, batch.src, batch.src_mask, batch.src_len)
+        for l, batch in enumerate(rebatch_data(pad_idx=1, batch=b, device=device) for b in data_loader):
+            out = greedy_decode(model, batch.src, batch.src_mask, start_symbol=vocab_tgt.sos_index)
+            # out = batch_decode(model, batch.src, batch.src_mask, batch.src_len,
+            #                    pad_index=vocab_tgt.pad_index,
+            #                    sos_index=vocab_tgt.sos_index,
+            #                    eos_index=vocab_tgt.eos_index)
+
+            # out, lengths = generate_beam(model, batch.src, batch.src_mask, batch.src_len,
+            #                              pad_index = vocab_tgt.pad_index,
+            #                              sos_index = vocab_tgt.sos_index,
+            #                              eos_index = vocab_tgt.eos_index,
+            #                              emb_dim=k,
+            #                              beam_size=5,
+            #                              length_penalty=False,
+            #                              early_stopping=False
+            #                              )
+
             print("Translation:", end="\t")
             for i in range(0, out.size(1)):
                 sym = vocab_tgt.itos[out[0, i]]
@@ -356,5 +308,5 @@ if __name__ == "__main__":
 
     print('OPTIONS ', options)
 
-    train(options)
-    # decode(options)
+    # train(options)
+    decode(options)
