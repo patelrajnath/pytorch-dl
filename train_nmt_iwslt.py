@@ -174,8 +174,10 @@ def decode(arg):
         return ys
 
     with torch.no_grad():
-        for k, batch in enumerate(rebatch(pad_idx=1, batch=b) for b in valid_iter):
-            out = greedy_decode(model, batch.src, batch.src_mask, start_symbol=TGT.vocab.stoi["<sos>"])
+        for k, batch in enumerate(valid_iter):
+            src = batch.src.transpose(0, 1)[:1]
+            src_mask = (src != SRC.vocab.stoi["<blank>"]).unsqueeze(-2)
+            out = greedy_decode(model, src, src_mask, start_symbol=TGT.vocab.stoi["<sos>"])
             print("Translation:", end="\t")
             for i in range(1, out.size(1)):
                 sym = TGT.vocab.itos[out[0, i]]
