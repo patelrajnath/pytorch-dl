@@ -136,6 +136,6 @@ def my_collate(batch):
 
 def get_perplexity(loss):
     try:
-        return '{:.2f}'.format(math.pow(2, loss))
+        return math.pow(2, loss)
     except OverflowError:
         return float('inf')
