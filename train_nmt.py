@@ -184,12 +184,6 @@ def decode(arg):
         for i in range(100):
             out = model.decoder(Variable(ys), memory, src_mask,
                                 Variable(subsequent_mask(ys.size(1)).type_as(src_tokens.data)))
-            # prob, logit = model.generator(out[:, -1])
-            # x, next_word = torch.max(prob, dim=1)
-            # print(torch.topk(prob, 1).shape)
-            # next_word = torch.topk(prob, 1)[1].squeeze(1)
-            # print(next_word)
-            # next_word = next_word.data[0]
             prob, logit = model.generator(out[:, -1])
             _, next_word = torch.max(prob, dim=1)
             next_word = next_word.data[0]
