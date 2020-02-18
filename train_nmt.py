@@ -245,7 +245,7 @@ def decode(arg):
         return generated.transpose(0, 1)
 
     with torch.no_grad():
-        for k, batch in enumerate(rebatch_data(pad_idx=1, batch=b) for b in data_loader):
+        for k, batch in enumerate(rebatch_data(pad_idx=1, batch=b, device=device) for b in data_loader):
             # out = greedy_decode(model, batch.src, batch.src_mask, start_symbol=vocab_tgt.sos_index)
             out = batch_decode(model, batch.src, batch.src_mask, batch.src_len)
             print("Translation:", end="\t")
