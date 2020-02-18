@@ -25,7 +25,7 @@ from torch.optim import Adam, lr_scheduler
 from torch.utils.data import DataLoader
 
 from dataset.vocab import WordVocab
-from models.utils.model_utils import save_state, load_model_state, get_masks, my_collate
+from models.utils.model_utils import save_state, load_model_state, get_masks, my_collate, get_perplexity
 from optim.lr_warm_up import GradualWarmupScheduler
 
 
@@ -125,7 +125,7 @@ def train(arg):
             if i % arg.wait == 0 and i > 0:
                 elapsed = time.time() - start
                 print("Epoch %d Step: %d Loss: %f PPL: %f Tokens per Sec: %f" %
-                      (epoch, i, loss / batch.ntokens, math.exp(loss / batch.ntokens), tokens / elapsed))
+                      (epoch, i, loss / batch.ntokens, get_perplexity(loss / batch.ntokens), tokens / elapsed))
                 start = time.time()
                 tokens = 0
                 # checkpoint = "checkpoint.{}.".format(total_loss / total_tokens) + 'epoch' + str(epoch) + ".pt"

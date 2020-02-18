@@ -21,7 +21,7 @@ from dataset.iwslt_data import get_data, MyIterator, batch_size_fn, rebatch, Sim
 
 from dataset.iwslt_data import NoamOpt
 from models.transformer import TransformerEncoderDecoder
-from models.utils.model_utils import save_state, load_model_state
+from models.utils.model_utils import save_state, load_model_state, get_perplexity
 from optim.lr_warm_up import GradualWarmupScheduler
 
 
@@ -102,7 +102,7 @@ def train(arg):
             if i % arg.wait == 0 and i > 0:
                 elapsed = time.time() - start
                 print("Epoch %d Step: %d Loss: %f PPL: %f Tokens per Sec: %f" %
-                      (epoch, i, loss / batch.ntokens, math.exp(loss / batch.ntokens), tokens / elapsed))
+                      (epoch, i, loss / batch.ntokens, get_perplexity(loss / batch.ntokens), tokens / elapsed))
                 start = time.time()
                 tokens = 0
                 # checkpoint = "checkpoint.{}.".format(total_loss / total_tokens) + 'epoch' + str(epoch) + ".pt"
