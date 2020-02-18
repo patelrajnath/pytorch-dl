@@ -90,8 +90,10 @@ def subsequent_mask(size):
 class Batch:
     "Object for holding a batch of utils with mask during training."
 
-    def __init__(self, src, trg=None, pad=0):
+    def __init__(self, src, trg=None, pad=0, src_len=None, trg_len=None):
         self.src = src
+        self.src_len = src_len
+        self.trg_len = trg_len
         self.src_mask = (src != pad).unsqueeze(-2)
         if trg is not None:
             self.trg = trg[:, :-1]
@@ -117,7 +119,7 @@ def rebatch(pad_idx, batch):
 def rebatch_data(pad_idx, batch):
     "Fix order in torchtext to match ours"
     source, targets, lengths_source, lengths_target = batch
-    return Batch(source, targets, pad_idx)
+    return Batch(source, targets, pad_idx, src_len=lengths_source, trg_len=lengths_target)
 
 
 class SimpleLossCompute:
