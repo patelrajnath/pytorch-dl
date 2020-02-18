@@ -27,7 +27,7 @@ from torch.utils.data import DataLoader
 from dataset.vocab import WordVocab
 from models.utils.model_utils import save_state, load_model_state, get_masks, my_collate, get_perplexity
 from optim.lr_warm_up import GradualWarmupScheduler
-
+torch.random.seed()
 
 def train(arg):
     input_file = arg.path
@@ -143,7 +143,7 @@ def decode(arg):
     vocab_src = WordVocab.load_vocab("/home/raj/PycharmProjects/pytorch-dl_data/nmt/{}.pkl".format(arg.source))
     vocab_tgt = WordVocab.load_vocab("/home/raj/PycharmProjects/pytorch-dl_data/nmt/{}.pkl".format(arg.target))
 
-    batch_size = 10
+    batch_size = 1
     k = arg.dim_model
     h = arg.num_heads
     depth = arg.depth
@@ -153,8 +153,12 @@ def decode(arg):
     data_set = TranslationDataSet(input_file, arg.source, arg.target, vocab_src, vocab_tgt, max_size,
                                   add_sos_and_eos=True)
 
-    data_loader = DataLoader(data_set, batch_size=batch_size, shuffle=False,
-                             collate_fn=my_collate)
+    data_loader = DataLoader(data_set,
+                             batch_size=batch_size,
+                             collate_fn=my_collate,
+                             num_workers=0,
+                             drop_last=False,
+                             pin_memory=False,)
     vocab_size_src = len(vocab_src.stoi)
     vocab_size_tgt = len(vocab_tgt.stoi)
 
@@ -173,6 +177,7 @@ def decode(arg):
     if cuda_condition:
         model.cuda()
 
+    model.eval()
     # Setting the tqdm progress bar
     # data_iter = tqdm.tqdm(enumerate(data_loader),
     #                       desc="Decoding",
@@ -206,13 +211,13 @@ def decode(arg):
         cur_len = 1
         gen_len = src_len.clone().fill_(1)
         unfinished_sents = src_len.clone().fill_(1)
-        print(unfinished_sents)
+        # print(unfinished_sents)
 
         while cur_len < max_len:
             print(generated[:cur_len])
             # compute word scores
             tensor = model.decoder(
-                tokens=generated[:cur_len].transpose(0, 1),
+                tokens=Variable(generated[:cur_len].transpose(0, 1)),
                 memory=src_enc,
                 src_mask=src_mask,
                 trg_mask=Variable(subsequent_mask(cur_len).type_as(src_tokens.data)),
@@ -224,7 +229,7 @@ def decode(arg):
             # print(prob.shape, logit.shape)
             # x, next_word = torch.max(prob, dim=1)
             next_words = torch.topk(prob, 1)[1].squeeze(1)
-            print(next_words)
+            # print(next_words)
             # print(next_words, generated[:cur_len])
 
             # update generations / lengths / finished sentences / current length
