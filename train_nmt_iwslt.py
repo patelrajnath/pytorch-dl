@@ -141,13 +141,14 @@ def decode(arg):
                                       num_emb=len(SRC.vocab),
                                       num_emb_target=len(TGT.vocab), max_len=max_len,
                                       mask_future_steps=True)
-
     # Initialize parameters with Glorot / fan_avg.
     for p in model.parameters():
         if p.dim() > 1:
             nn.init.xavier_uniform_(p)
 
     load_model_state(os.path.join(model_dir, 'checkpoints_best.pt'), model, data_parallel=True)
+    model.eval()
+
     cuda_condition = torch.cuda.is_available() and not arg.cpu
     device = torch.device("cuda:0" if cuda_condition else "cpu")
 
@@ -163,7 +164,8 @@ def decode(arg):
         memory = model.encoder(src_tokens, src_mask)
         ys = torch.ones(1, 1).fill_(start_symbol).type_as(src_tokens.data)
         for i in range(max):
-            out = model.decoder(Variable(ys), memory, src_mask, Variable(subsequent_mask(ys.size(1))))
+            out = model.decoder(Variable(ys), memory, src_mask,
+                                Variable(subsequent_mask(ys.size(1)).type_as(src_tokens.data)))
             prob, logit = model.generator(out[:, -1])
             _, next_word = torch.max(prob, dim=1)
             next_word = next_word.data[0]
