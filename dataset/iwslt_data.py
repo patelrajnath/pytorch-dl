@@ -92,8 +92,11 @@ class Batch:
 
     def __init__(self, src, trg=None, pad=0, src_len=None, trg_len=None, device='cpu'):
         self.src = src.to(device)
-        self.src_len = src_len.to(device)
-        self.trg_len = trg_len.to(device)
+        if src_len:
+            self.src_len = src_len.to(device)
+        if trg_len:
+            self.trg_len = trg_len.to(device)
+
         self.src_mask = (src != pad).unsqueeze(-2).to(device)
         if trg is not None:
             self.trg = trg[:, :-1].to(device)
