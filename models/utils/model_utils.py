@@ -6,6 +6,7 @@ Created by raj at 11:05
 Date: January 18, 2020
 """
 import logging
+import math
 import os
 import traceback
 
@@ -131,3 +132,10 @@ def my_collate(batch):
     targets = pad_sequence(targets, padding_value=1).transpose(0, 1)
 
     return source, targets, lengths_source, lengths_target
+
+
+def get_perplexity(loss):
+    try:
+        return '{:.2f}'.format(math.pow(2, loss))
+    except OverflowError:
+        return float('inf')
