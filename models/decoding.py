@@ -82,6 +82,7 @@ def generate_beam(model, src, src_mask, src_len,
                   sos_index,
                   eos_index,
                   emb_dim,
+                  vocab_size,
                   beam_size=5,
                   length_penalty=False,
                   early_stopping=False,
@@ -110,7 +111,8 @@ def generate_beam(model, src, src_mask, src_len,
 
         # batch size / number of words
         bs = len(src_len)
-        n_words = 100
+        print(bs)
+        n_words = vocab_size
 
         # expand to beam size the source latent representations / source lengths
         src_enc = src_enc.unsqueeze(1).expand((bs, beam_size) + src_enc.shape[1:]).contiguous().view((bs * beam_size,) + src_enc.shape[1:])
@@ -153,7 +155,10 @@ def generate_beam(model, src, src_mask, src_len,
                 src_mask=src_mask,
                 trg_mask=Variable(make_std_mask(generated[:cur_len].transpose(0, 1), pad_index).type_as(src.data)),
             )
-            tensor = tensor.transpose(0, 1)
+            print('before', tensor.shape)
+            tensor = tensor.view(-1, bs * beam_size, emb_dim)
+            print('after', tensor.shape)
+
             assert tensor.size() == (1, bs * beam_size, emb_dim)
             tensor = tensor.data[-1, :, :]               # (bs * beam_size, dim)
             scores, logit = model.generator(tensor)  # (bs * beam_size, n_words)
