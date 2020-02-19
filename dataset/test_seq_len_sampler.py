@@ -25,15 +25,15 @@ vocab_tgt = WordVocab.load_vocab("sample-data/{}.pkl".format(trg))
 data_set = TranslationDataSet(input_file, src, trg, vocab_src, vocab_tgt, 100,
                               add_sos_and_eos=True)
 
-bucket_boundaries = [50, 100, 125, 150, 175, 200, 250, 300]
-batch_sizes = 32
+bucket_boundaries = [10, 20, 30, 40, 50, 60, 70]
+batch_sizes = 10
 
 sampler = BySequenceLengthSampler(data_set, bucket_boundaries, batch_sizes)
 
-data_loader = DataLoader(data_set, batch_size=10,
-                         collate_fn=my_collate,
-                         num_workers=0,
-                         drop_last=False,
-                         pin_memory=False,
-                         shuffle=True
-                         )
+data_loader = DataLoader(data_set, batch_sampler=sampler, collate_fn=my_collate)
+# data_loader = DataLoader(data_set, batch_size=batch_sizes, collate_fn=my_collate)
+
+for i, batch in enumerate(data_loader):
+    print(batch)
+    if i> 100:
+        break
