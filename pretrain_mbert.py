@@ -7,6 +7,8 @@ Date: January 18, 2020
 """
 import os
 from argparse import ArgumentParser
+
+from dataset.iwslt_data import LabelSmoothing, NoamOpt, SimpleLossCompute, rebatch_mbert
 from models.transformer import TransformerEncoderDecoder
 
 import torch
@@ -17,7 +19,7 @@ from torch.utils.data import DataLoader
 
 from dataset.data_loader_mbert import MBertDataSet
 from dataset.vocab import WordVocab
-from models.utils.model_utils import save_state
+from models.utils.model_utils import save_state, my_collate
 
 
 def go(arg):
@@ -37,22 +39,32 @@ def go(arg):
     modeldir = "bert"
     data_set = MBertDataSet(input_file, vocab, max_size)
 
-    data_loader = DataLoader(data_set, batch_size=batch_size, shuffle=True)
+    data_loader = DataLoader(data_set, batch_size=batch_size,
+                             collate_fn=my_collate,
+                             num_workers=0,
+                             drop_last=False,
+                             pin_memory=False,
+                             shuffle=True
+                             )
+
     vocab_size = len(vocab.stoi)
     model = TransformerEncoderDecoder(k, h, depth=depth, num_emb=vocab_size, num_emb_target=vocab_size, max_len=max_size)
 
-    criterion = nn.NLLLoss(ignore_index=0)
-    optimizer = Adam(params=model.parameters(), lr=1e-3, betas=(0.9, 0.999), eps=1e-8,
-                     weight_decay=0, amsgrad=False)
-    lr_schedular = lr_scheduler.LambdaLR(optimizer, lambda i: min(i / (lr_warmup / batch_size), 1.0))
+    # criterion = nn.NLLLoss(ignore_index=0)
+    # optimizer = Adam(params=model.parameters(), lr=1e-3, betas=(0.9, 0.999), eps=1e-8,
+    #                  weight_decay=0, amsgrad=False)
+    # lr_schedular = lr_scheduler.LambdaLR(optimizer, lambda i: min(i / (lr_warmup / batch_size), 1.0))
 
-    cuda_condition = torch.cuda.is_available()
-    device = torch.device("cuda:0" if cuda_condition else "cpu")
+    criterion = LabelSmoothing(size=len(vocab.stoi), padding_idx=1, smoothing=0.1)
+    optimizer = NoamOpt(arg.dim_model, 1, 2000, torch.optim.Adam(model.parameters(), lr=0, betas=(0.9, 0.98), eps=1e-9))
+    compute_loss = SimpleLossCompute(model.generator, criterion, optimizer)
 
-    if cuda_condition:
-        model.cuda()
+    use_cuda = torch.cuda.is_available() and not arg.cpu
+    device = torch.device("cuda:0" if use_cuda else "cpu")
 
-    if cuda_condition and torch.cuda.device_count() > 1:
+    model.to(device)
+
+    if use_cuda and torch.cuda.device_count() > 1:
         print("Using %d GPUS for BERT" % torch.cuda.device_count())
         model = nn.DataParallel(model, device_ids=[0,1,2,3])
 
@@ -62,15 +74,11 @@ def go(arg):
         data_iter = tqdm.tqdm(enumerate(data_loader),
                               desc="Running epoch: {}".format(epoch),
                               total=len(data_loader))
-        for i, data in data_iter:
-            data = {key: value.to(device) for key, value in data.items()}
-            bert_input, bert_label = data
-            mask_out = model(data[bert_input])
-            loss = criterion(mask_out.transpose(1, 2), data[bert_label])
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            lr_schedular.step(epoch)
+        for i, batch in enumerate(rebatch_mbert(pad_idx=vocab.pad_index, batch=b, device=device) for b in data_loader):
+
+            # For mBert we use both source and target the same but the target-mask as its to skip the future steps
+            out = model(batch.src, batch.src_mask, batch.src, batch.trg_mask)
+            loss = compute_loss(out, batch.trg, batch.ntokens)
             avg_loss += loss.item()
             if i % arg.wait == 0 and i > 0:
                 checkpoint = "checkpoint.{}.".format(avg_loss/i) + str(epoch) + ".pt"
@@ -106,6 +114,10 @@ if __name__ == "__main__":
 
     parser.add_argument("-f", "--final", dest="final",
                         help="Whether to run on the real test set (if not included, the validation set is used).",
+                        action="store_true")
+
+    parser.add_argument("--cpu", dest="cpu",
+                        help="Use CPU computation.).",
                         action="store_true")
 
     parser.add_argument("--max-pool", dest="max_pool",
