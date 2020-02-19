@@ -99,7 +99,9 @@ class Batch:
 
         self.src_mask = (src != pad).unsqueeze(-2).to(device)
         if trg is not None:
+            # Reduce the <eos> symbol
             self.trg = trg[:, :-1].to(device)
+            # Reduce the <sos> symbol
             self.trg_y = trg[:, 1:].to(device)
             self.trg_mask = \
                 self.make_std_mask(self.trg, pad).to(device)
@@ -125,9 +127,12 @@ class BatchMBert:
 
         self.src_mask = (src != pad).unsqueeze(-2).to(device)
         if trg is not None:
-            self.trg = trg.to(device)
+            # Reduce the <eos> symbol
+            self.trg = src[:, :-1].to(device) # For mBert source is used as target
+            # Reduce the <sos> symbol
+            self.trg_y = trg[:, 1:].to(device)
             self.trg_mask = \
-                self.make_std_mask(self.trg, pad).to(device)
+                self.make_std_mask(self.trg_y, pad).to(device)
             self.ntokens = (self.trg != pad).data.sum()
 
     @staticmethod
