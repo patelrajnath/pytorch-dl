@@ -29,16 +29,22 @@ from dataset.vocab import WordVocab
 from models.utils.model_utils import save_state, load_model_state, get_masks, my_collate, get_perplexity
 from optim.lr_warm_up import GradualWarmupScheduler
 
+model_dir = "nmt"
+try:
+    os.makedirs(model_dir)
+except OSError:
+    pass
+
 
 def train(arg):
     input_file = arg.path
     for lang in (arg.source, arg.target):
         with open(input_file + '.' + lang) as f:
             vocab = WordVocab(f)
-            vocab.save_vocab("sample-data/{}.pkl".format(lang))
+            vocab.save_vocab("{}/{}.pkl".format(model_dir, lang))
 
-    vocab_src = WordVocab.load_vocab("sample-data/{}.pkl".format(arg.source))
-    vocab_tgt = WordVocab.load_vocab("sample-data/{}.pkl".format(arg.target))
+    vocab_src = WordVocab.load_vocab("{}/{}.pkl".format(model_dir, arg.source))
+    vocab_tgt = WordVocab.load_vocab("{}/{}.pkl".format(model_dir, arg.target))
 
     lr_warmup = arg.lr_warmup
     batch_size = arg.batch_size
@@ -46,12 +52,6 @@ def train(arg):
     h = arg.num_heads
     depth = arg.depth
     max_size=arg.max_length
-    model_dir = "nmt"
-    try:
-        os.makedirs(model_dir)
-    except OSError:
-        pass
-
     previous_best = inf
 
     data_set = TranslationDataSet(input_file, arg.source, arg.target, vocab_src, vocab_tgt, max_size,
@@ -61,7 +61,7 @@ def train(arg):
     # batch_sizes = 32
     # sampler = BySequenceLengthSampler(data_set, bucket_boundaries, batch_sizes)
 
-    bucket_boundaries = [i * 10 for i in range(30)]
+    bucket_boundaries = [i * 30 for i in range(20)]
     sampler = BySequenceLengthSampler(data_set, bucket_boundaries, batch_size)
 
     data_loader = DataLoader(data_set, collate_fn=my_collate, batch_sampler=sampler)
@@ -137,7 +137,6 @@ def train(arg):
 
 
 def decode(arg):
-    model_dir = "/home/raj/PycharmProjects/models"
     vocab_src = WordVocab.load_vocab("{}/{}.pkl".format(model_dir, arg.source))
     vocab_tgt = WordVocab.load_vocab("{}/{}.pkl".format(model_dir, arg.target))
     batch_size = 1
