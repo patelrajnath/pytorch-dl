@@ -6,18 +6,19 @@ Created by raj at 11:05
 Date: January 18, 2020
 """
 import os
+import time
 from argparse import ArgumentParser
+
+from dataset.iwslt_data import LabelSmoothing, NoamOpt, SimpleLossCompute, rebatch_mbert
 from models.transformer import TransformerEncoderDecoder
 
 import torch
-import tqdm
 from torch import nn
-from torch.optim import Adam, lr_scheduler
 from torch.utils.data import DataLoader
 
 from dataset.data_loader_mbert import MBertDataSet
 from dataset.vocab import WordVocab
-from models.utils.model_utils import save_state
+from models.utils.model_utils import save_state, my_collate, get_perplexity
 
 
 def go(arg):
@@ -34,52 +35,65 @@ def go(arg):
     h = arg.num_heads
     depth = arg.depth
     max_size=arg.max_length
-    modeldir = "bert"
+    model_dir = "bert"
+    try:
+        os.makedirs(model_dir)
+    except OSError:
+        pass
     data_set = MBertDataSet(input_file, vocab, max_size)
 
-    data_loader = DataLoader(data_set, batch_size=batch_size, shuffle=True)
+    data_loader = DataLoader(data_set, batch_size=batch_size,
+                             collate_fn=my_collate,
+                             num_workers=0,
+                             drop_last=False,
+                             pin_memory=False,
+                             shuffle=True
+                             )
+
     vocab_size = len(vocab.stoi)
     model = TransformerEncoderDecoder(k, h, depth=depth, num_emb=vocab_size, num_emb_target=vocab_size, max_len=max_size)
 
-    criterion = nn.NLLLoss(ignore_index=0)
-    optimizer = Adam(params=model.parameters(), lr=1e-3, betas=(0.9, 0.999), eps=1e-8,
-                     weight_decay=0, amsgrad=False)
-    lr_schedular = lr_scheduler.LambdaLR(optimizer, lambda i: min(i / (lr_warmup / batch_size), 1.0))
+    # criterion = nn.NLLLoss(ignore_index=0)
+    # optimizer = Adam(params=model.parameters(), lr=1e-3, betas=(0.9, 0.999), eps=1e-8,
+    #                  weight_decay=0, amsgrad=False)
+    # lr_schedular = lr_scheduler.LambdaLR(optimizer, lambda i: min(i / (lr_warmup / batch_size), 1.0))
 
-    cuda_condition = torch.cuda.is_available()
-    device = torch.device("cuda:0" if cuda_condition else "cpu")
+    criterion = LabelSmoothing(size=len(vocab.stoi), padding_idx=1, smoothing=0.1)
+    optimizer = NoamOpt(arg.dim_model, 1, 2000, torch.optim.Adam(model.parameters(), lr=0, betas=(0.9, 0.98), eps=1e-9))
+    compute_loss = SimpleLossCompute(model.generator, criterion, optimizer)
 
-    if cuda_condition:
-        model.cuda()
+    use_cuda = torch.cuda.is_available() and not arg.cpu
+    device = torch.device("cuda:0" if use_cuda else "cpu")
 
-    if cuda_condition and torch.cuda.device_count() > 1:
+    model.to(device)
+
+    if use_cuda and torch.cuda.device_count() > 1:
         print("Using %d GPUS for BERT" % torch.cuda.device_count())
         model = nn.DataParallel(model, device_ids=[0,1,2,3])
 
     for epoch in range(arg.num_epochs):
-        avg_loss = 0
-        # Setting the tqdm progress bar
-        data_iter = tqdm.tqdm(enumerate(data_loader),
-                              desc="Running epoch: {}".format(epoch),
-                              total=len(data_loader))
-        for i, data in data_iter:
-            data = {key: value.to(device) for key, value in data.items()}
-            bert_input, bert_label = data
-            mask_out = model(data[bert_input])
-            loss = criterion(mask_out.transpose(1, 2), data[bert_label])
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            lr_schedular.step(epoch)
-            avg_loss += loss.item()
+        start = time.time()
+        total_tokens = 0
+        total_loss = 0
+        tokens = 0
+        for i, batch in enumerate(rebatch_mbert(pad_idx=vocab.pad_index, batch=b, device=device) for b in data_loader):
+            # For mBert we use both source and target the same: batch.src = batch.trg
+            out = model(batch.src, batch.src_mask, batch.trg, batch.trg_mask)
+            loss = compute_loss(out, batch.trg_y, batch.ntokens)
+            total_loss += loss
+            total_tokens += batch.ntokens
+            tokens += batch.ntokens
             if i % arg.wait == 0 and i > 0:
-                checkpoint = "checkpoint.{}.".format(avg_loss/i) + str(epoch) + ".pt"
-                try:
-                    os.makedirs(modeldir)
-                except OSError:
-                    pass
-                save_state(os.path.join(modeldir, checkpoint), model, criterion, optimizer, epoch)
-        print('Average loss: {}'.format(avg_loss / len(data_iter)))
+                if i % arg.wait == 0 and i > 0:
+                    elapsed = time.time() - start
+                    print("Epoch %d Step: %d Loss: %f PPL: %f Tokens per Sec: %f" %
+                          (epoch, i, loss / batch.ntokens, get_perplexity(loss / batch.ntokens), tokens / elapsed))
+                    start = time.time()
+                    tokens = 0
+        loss_average = total_loss / total_tokens
+        checkpoint = "checkpoint.{}.".format(loss_average) + 'epoch' + str(epoch) + ".pt"
+        save_state(os.path.join(model_dir, checkpoint), model, criterion, optimizer, epoch)
+        print('Average loss: {}'.format(loss_average))
 
 
 if __name__ == "__main__":
@@ -108,11 +122,15 @@ if __name__ == "__main__":
                         help="Whether to run on the real test set (if not included, the validation set is used).",
                         action="store_true")
 
+    parser.add_argument("--cpu", dest="cpu",
+                        help="Use CPU computation.).",
+                        action="store_true")
+
     parser.add_argument("--max-pool", dest="max_pool",
                         help="Use max pooling in the final classification layer.",
                         action="store_true")
 
-    parser.add_argument("-E", "--dim_model", dest="dim_model",
+    parser.add_argument("-E", "--dim-model", dest="dim_model",
                         help="Size of the character embeddings.",
                         default=512, type=int)
 
@@ -153,8 +171,6 @@ if __name__ == "__main__":
                         default=1.0, type=float)
 
     options = parser.parse_args()
-
     print('OPTIONS ', options)
-
     go(options)
 

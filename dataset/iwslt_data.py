@@ -99,11 +99,41 @@ class Batch:
 
         self.src_mask = (src != pad).unsqueeze(-2).to(device)
         if trg is not None:
+            # Reduce the <eos> symbol
             self.trg = trg[:, :-1].to(device)
+            # Reduce the <sos> symbol
             self.trg_y = trg[:, 1:].to(device)
             self.trg_mask = \
                 self.make_std_mask(self.trg, pad).to(device)
             self.ntokens = (self.trg_y != pad).data.sum()
+
+    @staticmethod
+    def make_std_mask(tgt, pad):
+        "Create a mask to hide padding and future words."
+        tgt_mask = (tgt != pad).unsqueeze(-2)
+        tgt_mask = tgt_mask & Variable(subsequent_mask(tgt.size(-1)).type_as(tgt_mask.data))
+        return tgt_mask
+
+
+class BatchMBert:
+    "Object for holding a batch of utils with mask during training."
+
+    def __init__(self, src, trg=None, pad=0, src_len=None, trg_len=None, device='cpu'):
+        self.src = src.to(device)
+        if src_len is not None:
+            self.src_len = src_len.to(device)
+        if trg_len is not None:
+            self.trg_len = trg_len.to(device)
+
+        self.src_mask = (src != pad).unsqueeze(-2).to(device)
+        if trg is not None:
+            # Reduce the <eos> symbol
+            self.trg = src[:, :-1].to(device) # For mBert source is used as target
+            # Reduce the <sos> symbol
+            self.trg_y = trg[:, 1:].to(device)
+            self.trg_mask = \
+                self.make_std_mask(self.trg_y, pad).to(device)
+            self.ntokens = (self.trg != pad).data.sum()
 
     @staticmethod
     def make_std_mask(tgt, pad):
@@ -123,6 +153,12 @@ def rebatch_data(pad_idx, batch, device='cpu'):
     "Fix order in torchtext to match ours"
     source, targets, lengths_source, lengths_target = batch
     return Batch(source, targets, pad_idx, src_len=lengths_source, trg_len=lengths_target, device=device)
+
+
+def rebatch_mbert(pad_idx, batch, device='cpu'):
+    "Fix order in torchtext to match ours"
+    source, targets, lengths_source, lengths_target = batch
+    return BatchMBert(source, targets, pad_idx, src_len=lengths_source, trg_len=lengths_target, device=device)
 
 
 class SimpleLossCompute:

@@ -309,5 +309,5 @@ if __name__ == "__main__":
 
     print('OPTIONS ', options)
 
-    # train(options)
-    decode(options)
+    train(options)
+    # decode(options)
