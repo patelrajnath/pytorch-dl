@@ -125,11 +125,11 @@ class TransformerBlockDecoder(nn.Module):
 
 
 class Transformer(nn.Module):
-    def __init__(self, k, heads, depth, seq_length, num_tokens, num_classes, dropout=0.01, multihead_shared_emb=True):
+    def __init__(self, k, heads, depth, num_tokens, num_classes, dropout=0.1, multihead_shared_emb=True):
         super().__init__()
 
         self.num_tokens = num_tokens
-        self.token_emb = nn.Embedding(num_tokens, k)
+        self.token_emb = Embeddings(k, num_tokens)
         self.pos_emb = PositionalEncoding(k, dropout)
 
         # The sequence of transformer blocks that does all the
@@ -152,8 +152,8 @@ class Transformer(nn.Module):
                  classes (where c is the nr. of classes).
         """
         # generate token embeddings
-        tokens = self.token_emb(x)
-        b, t, k = tokens.size()
+        x = self.token_emb(x)
+        b, t, k = x.size()
 
         # generate position embeddings
         x = self.pos_emb(x)
