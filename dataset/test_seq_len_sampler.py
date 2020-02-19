@@ -25,7 +25,7 @@ vocab_tgt = WordVocab.load_vocab("sample-data/{}.pkl".format(trg))
 data_set = TranslationDataSet(input_file, src, trg, vocab_src, vocab_tgt, 100,
                               add_sos_and_eos=True)
 
-bucket_boundaries = [10, 20, 30, 40, 50, 60, 70]
+bucket_boundaries = [i*10 for i in range(30)]
 batch_sizes = 10
 
 sampler = BySequenceLengthSampler(data_set, bucket_boundaries, batch_sizes)

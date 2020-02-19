@@ -61,13 +61,10 @@ def train(arg):
     # batch_sizes = 32
     # sampler = BySequenceLengthSampler(data_set, bucket_boundaries, batch_sizes)
 
-    data_loader = DataLoader(data_set, batch_size=batch_size,
-                             collate_fn=my_collate,
-                             num_workers=0,
-                             drop_last=False,
-                             pin_memory=False,
-                             shuffle=True
-                             )
+    bucket_boundaries = [i * 10 for i in range(30)]
+    sampler = BySequenceLengthSampler(data_set, bucket_boundaries, batch_size)
+
+    data_loader = DataLoader(data_set, collate_fn=my_collate, batch_sampler=sampler)
     vocab_size_src = len(vocab_src.stoi)
     vocab_size_tgt = len(vocab_tgt.stoi)
 
