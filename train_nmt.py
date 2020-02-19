@@ -195,6 +195,7 @@ def decode(arg):
             #                              sos_index = vocab_tgt.sos_index,
             #                              eos_index = vocab_tgt.eos_index,
             #                              emb_dim=k,
+            #                              vocab_size=vocab_size_tgt,
             #                              beam_size=5,
             #                              length_penalty=False,
             #                              early_stopping=False
