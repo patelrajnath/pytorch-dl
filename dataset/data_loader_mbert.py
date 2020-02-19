@@ -16,11 +16,12 @@ from torch.utils.data import Dataset
 class MBertDataSet(Dataset):
     """
     """
-    def __init__(self, corpus_path, vocab, max_size, corpus_lines=None, encoding="utf-8", on_memory=True):
+    def __init__(self, corpus_path, vocab, max_size, corpus_lines=None, encoding="utf-8", add_sos_eos=True, on_memory=True):
         self.corpus_path = corpus_path
         self.corpus_lines = corpus_lines
         self.vocab = vocab
         self.max_size = max_size
+        self.add_sos_eos = add_sos_eos
 
         with open(self.corpus_path, "r", encoding=encoding) as f:
             self.lines = [line[:-1].strip()
@@ -34,19 +35,19 @@ class MBertDataSet(Dataset):
         line = self.get_corpus_line(idx)
         t1_tokens, t1_label = self.random_words(line)
 
-        t1_random = [self.vocab.sos_index] + t1_tokens + [self.vocab.eos_index]
+        if self.add_sos_eos:
+            t1_random = [self.vocab.sos_index] + t1_tokens + [self.vocab.eos_index]
+            t1_label = [self.vocab.sos_index] + t1_label + [self.vocab.eos_index]
+        else:
+            t1_random = t1_tokens
+            t1_label = t1_label
 
-        t1_label = [self.vocab.pad_index] + t1_label + [self.vocab.pad_index]
-
-        bert_input = t1_random[:self.max_size]
-        bert_label = t1_label[:self.max_size]
-
-        padding = [self.vocab.pad_index for _ in range(self.max_size - len(bert_input))]
-        bert_input.extend(padding), bert_label.extend(padding)
+        input = t1_random[:self.max_size]
+        label = t1_label[:self.max_size]
 
         output = {
-            "bert_input": bert_input,
-            "bert_label": bert_label
+            "source": input,
+            "target": label
         }
 
         return {key: torch.tensor(value) for key, value in output.items()}
