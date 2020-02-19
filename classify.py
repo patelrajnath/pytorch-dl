@@ -55,9 +55,11 @@ def go(arg):
 
     # create the model
     model = Transformer(k=arg.dim_model, heads=arg.num_heads, depth=arg.depth,
-                        seq_length=mx, num_tokens=arg.vocab_size, num_classes=NUM_CLS)
-    if torch.cuda.is_available():
-        model.cuda()
+                        num_tokens=arg.vocab_size, num_classes=NUM_CLS)
+    use_cuda = torch.cuda.is_available() and not arg.cpu
+    device = torch.device("cuda:0" if use_cuda else "cpu")
+
+    model = model.to(device)
 
     opt = Adam(params=model.parameters(), lr=1e-3, betas=(0.9, 0.999), eps=1e-8,
                      weight_decay=0, amsgrad=False)
@@ -73,8 +75,9 @@ def go(arg):
 
             opt.zero_grad()
 
-            input = batch.text[0]
+            input = batch.text[0].to(device)
             label = batch.label - 1
+            label = label.to(device)
 
             if input.size(1) > mx:
                 input = input[:, :mx]
@@ -89,7 +92,7 @@ def go(arg):
                 nn.utils.clip_grad_norm_(model.parameters(), arg.gradient_clipping)
 
             opt.step()
-            sch.step()
+            sch.step(epoch=e)
 
             seen += input.size(0)
             # tbw.add_scalar('classification/train-loss', float(loss.item()), seen)
@@ -147,6 +150,10 @@ if __name__ == "__main__":
 
     parser.add_argument("-f", "--final", dest="final",
                         help="Whether to run on the real test set (if not included, the validation set is used).",
+                        action="store_true")
+
+    parser.add_argument("--cpu", dest="cpu",
+                        help="Use CPU computation.).",
                         action="store_true")
 
     parser.add_argument("--max-pool", dest="max_pool",
