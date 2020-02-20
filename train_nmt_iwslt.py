@@ -25,14 +25,14 @@ from models.transformer import TransformerEncoderDecoder
 from models.utils.model_utils import save_state, load_model_state, get_perplexity
 from optim.lr_warm_up import GradualWarmupScheduler
 
-model_dir = "transformer-model"
-try:
-    os.makedirs(model_dir)
-except OSError:
-    pass
-
 
 def train(arg):
+    model_dir = arg.model
+    try:
+        os.makedirs(model_dir)
+    except OSError:
+        pass
+
     train, val, test, SRC, TGT = get_data()
 
     pad_idx = TGT.vocab.stoi["<blank>"]
@@ -54,8 +54,11 @@ def train(arg):
                             repeat=False, sort_key=lambda x: (len(x.src), len(x.trg)),
                             batch_size_fn=batch_size_fn, train=True)
 
-    model = TransformerEncoderDecoder(k=model_dim, heads=heads, dropout=arg.dropout, depth=depth, num_emb=len(SRC.vocab),
-                                      num_emb_target=len(TGT.vocab), max_len=max_len,
+    model = TransformerEncoderDecoder(k=model_dim, heads=heads, dropout=arg.dropout,
+                                      depth=depth,
+                                      num_emb=len(SRC.vocab),
+                                      num_emb_target=len(TGT.vocab),
+                                      max_len=max_len,
                                       mask_future_steps=True)
 
     # Initialize parameters with Glorot / fan_avg.
@@ -66,8 +69,10 @@ def train(arg):
     start_epoch = load_model_state(os.path.join(model_dir, 'checkpoints_best.pt'), model,
                                    data_parallel=arg.data_parallel)
 
-    criterion = LabelSmoothing(size=len(TGT.vocab), padding_idx=pad_idx, smoothing=0.1)
-    optimizer = NoamOpt(model_dim, 1, 2000, torch.optim.Adam(model.parameters(), lr=0, betas=(0.9, 0.98), eps=1e-9))
+    criterion = LabelSmoothing(size=len(TGT.vocab), padding_idx=pad_idx, smoothing=arg.label_smoothing)
+    optimizer = NoamOpt(model_dim, 1, 2000, torch.optim.Adam(model.parameters(),
+                                                             lr=arg.lr,
+                                                             betas=(0.9, 0.98), eps=1e-9))
     compute_loss = SimpleLossCompute(model.generator, criterion, optimizer)
 
     # criterion = nn.CrossEntropyLoss()
@@ -88,7 +93,7 @@ def train(arg):
 
     previous_best = inf
 
-    for epoch in range(1, arg.num_epochs):
+    for epoch in range(start_epoch, arg.num_epochs):
         start = time.time()
         total_tokens = 0
         total_loss = 0
@@ -124,6 +129,7 @@ def train(arg):
 
 
 def decode(arg):
+    model_dir = arg.model
     train, val, test, SRC, TGT = get_data()
     pad_idx = TGT.vocab.stoi["<blank>"]
     BATCH_SIZE = arg.batch_size
@@ -131,7 +137,6 @@ def decode(arg):
     heads = arg.num_heads
     depth = arg.depth
     max_len = arg.max_length
-    model_dir = "transformer-model"
 
     n_batches = math.ceil(len(train) / BATCH_SIZE)
 
@@ -219,6 +224,10 @@ if __name__ == "__main__":
                         help="The batch size.",
                         default=4, type=int)
 
+    parser.add_argument("-M", "--model", dest="model",
+                        help="model directory",
+                        default='nmt')
+
     parser.add_argument("--learn-rate",
                         dest="lr",
                         help="Learning rate",
@@ -226,7 +235,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--dropout",
                         dest="dropout",
-                        help="Learning rate",
+                        help="Dropout rate",
                         default=0.1, type=float)
     parser.add_argument("--label-smoothing",
                         dest="label_smoothing",
