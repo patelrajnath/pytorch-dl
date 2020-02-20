@@ -104,6 +104,7 @@ def train(arg):
 
     def truncate_division(x, y):
         return round(x/y, 2)
+
     previous_best = inf
     for epoch in range(start_epoch, arg.num_epochs):
         start = time.time()
@@ -168,13 +169,13 @@ def decode(arg):
     #         nn.init.xavier_uniform_(p)
 
     load_model_state(os.path.join(model_dir, 'checkpoints_best.pt'), model, data_parallel=False)
+    model.eval()
+
     cuda_condition = torch.cuda.is_available() and not arg.cpu
     device = torch.device("cuda:0" if cuda_condition else "cpu")
 
     if cuda_condition:
         model.cuda()
-
-    model.eval()
     # Setting the tqdm progress bar
     # data_iter = tqdm.tqdm(enumerate(data_loader),
     #                       desc="Decoding",
@@ -199,6 +200,12 @@ def decode(arg):
             #                              early_stopping=False
             #                              )
 
+            print("Source:", end="\t")
+            for i in range(0, batch.src.size(1)):
+                sym = vocab_src.itos[batch.src[0, i]]
+                if sym == "<eos>": break
+                print(sym, end=" ")
+            print()
             print("Translation:", end="\t")
             for i in range(0, out.size(1)):
                 sym = vocab_tgt.itos[out[0, i]]
