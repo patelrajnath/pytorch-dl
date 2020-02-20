@@ -227,7 +227,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--shuffle",
                         dest='shuffle',
-                        action='store_false',
+                        action='store_true',
                         help="Enable data shuffling")
 
     parser.add_argument("-b", "--batch-size",
