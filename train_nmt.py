@@ -63,7 +63,7 @@ def train(arg):
     data_loader = DataLoader(data_set,
                              batch_size=batch_size,
                              collate_fn=my_collate,
-                             shuffle=True)
+                             shuffle=arg.shuffle)
 
     vocab_size_src = len(vocab_src.stoi)
     vocab_size_tgt = len(vocab_tgt.stoi)
@@ -152,7 +152,7 @@ def decode(arg):
     data_loader = DataLoader(data_set,
                              batch_size=batch_size,
                              collate_fn=my_collate,
-                             shuffle=False)
+                             shuffle=arg.shuffle)
     vocab_size_src = len(vocab_src.stoi)
     vocab_size_tgt = len(vocab_tgt.stoi)
 
@@ -224,6 +224,11 @@ if __name__ == "__main__":
                         dest='data_parallel',
                         action='store_true',
                         help="Enable it for decoding if training was donw with multi-gpu")
+
+    parser.add_argument("--shuffle",
+                        dest='shuffle',
+                        action='store_false',
+                        help="Enable data shuffling")
 
     parser.add_argument("-b", "--batch-size",
                         dest="batch_size",
