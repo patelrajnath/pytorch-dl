@@ -35,7 +35,6 @@ try:
 except OSError:
     pass
 
-
 def train(arg):
     input_file = arg.path
     for lang in (arg.source, arg.target):
@@ -163,10 +162,6 @@ def decode(arg):
     model = TransformerEncoderDecoder(k, h, depth=depth, num_emb=vocab_size_src,
                                       num_emb_target=vocab_size_tgt, max_len=max_size,
                                       mask_future_steps=True)
-    # Initialize parameters with Glorot / fan_avg.
-    # for p in model.parameters():
-    #     if p.dim() > 1:
-    #         nn.init.xavier_uniform_(p)
 
     load_model_state(os.path.join(model_dir, 'checkpoints_best.pt'), model, data_parallel=False)
     model.eval()
@@ -176,10 +171,6 @@ def decode(arg):
 
     if cuda_condition:
         model.cuda()
-    # Setting the tqdm progress bar
-    # data_iter = tqdm.tqdm(enumerate(data_loader),
-    #                       desc="Decoding",
-    #                       total=len(data_loader))
 
     with torch.no_grad():
         for l, batch in enumerate(rebatch_data(pad_idx=1, batch=b, device=device) for b in data_loader):
