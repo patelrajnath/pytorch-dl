@@ -166,6 +166,12 @@ def decode(arg):
             src = batch.src.transpose(0, 1)[:1]
             src_mask = (src != SRC.vocab.stoi["<blank>"]).unsqueeze(-2)
             out = greedy_decode(model, src, src_mask, start_symbol=TGT.vocab.stoi["<sos>"])
+            print("Source:", end="\t")
+            for i in range(1, batch.src.size(0)):
+                sym = SRC.vocab.itos[batch.src.data[i, 0]]
+                if sym == "<eos>": break
+                print(sym, end=" ")
+            print()
             print("Translation:", end="\t")
             for i in range(1, out.size(1)):
                 sym = TGT.vocab.itos[out[0, i]]
