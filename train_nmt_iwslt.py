@@ -147,7 +147,7 @@ def decode(arg):
         if p.dim() > 1:
             nn.init.xavier_uniform_(p)
 
-    load_model_state(os.path.join(model_dir, 'checkpoints_best.pt'), model, data_parallel=True)
+    load_model_state(os.path.join(model_dir, 'checkpoints_best.pt'), model, data_parallel=arg.data_parallel)
     model.eval()
 
     cuda_condition = torch.cuda.is_available() and not arg.cpu
@@ -189,16 +189,29 @@ def decode(arg):
 
 if __name__ == "__main__":
     parser = ArgumentParser()
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument('--train', dest="train", action='store_true', help="Enable for training")
+    mode.add_argument('--decode', dest="decode", action='store_true')
 
     parser.add_argument("-e", "--num-epochs",
                         dest="num_epochs",
                         help="Number of epochs.",
                         default=30, type=int)
 
+    parser.add_argument("--data-parallel",
+                        dest='data_parallel',
+                        action='store_true',
+                        help="Enable it for decoding if training was donw with multi-gpu")
+
+    parser.add_argument("--shuffle",
+                        dest='shuffle',
+                        action='store_true',
+                        help="Enable data shuffling")
+
     parser.add_argument("-b", "--batch-size",
                         dest="batch_size",
                         help="The batch size.",
-                        default=4000, type=int)
+                        default=4, type=int)
 
     parser.add_argument("--learn-rate",
                         dest="lr",
@@ -280,5 +293,11 @@ if __name__ == "__main__":
 
     print('OPTIONS ', options)
 
-    train(options)
-    # decode(options)
+    if options.train:
+        print('Launching training...')
+        train(options)
+    elif options.decode:
+        print('Launching decoding...')
+        decode(options)
+    else:
+        print("Specify either --train or --decode")
