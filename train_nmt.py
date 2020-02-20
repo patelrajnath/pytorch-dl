@@ -263,7 +263,7 @@ if __name__ == "__main__":
                         help="sample training file",
                         default='sample-data/europarl.enc')
 
-    parser.add_argument("-M", "--model", dest="model",
+    parser.add_argument("--model", dest="model",
                         help="model directory",
                         default='nmt')
 

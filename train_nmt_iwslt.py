@@ -224,9 +224,9 @@ if __name__ == "__main__":
                         help="The batch size.",
                         default=4, type=int)
 
-    parser.add_argument("-M", "--model", dest="model",
+    parser.add_argument("--model", dest="model",
                         help="model directory",
-                        default='nmt')
+                        default='iwslt')
 
     parser.add_argument("--learn-rate",
                         dest="lr",
