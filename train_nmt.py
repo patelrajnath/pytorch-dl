@@ -52,19 +52,21 @@ def train(arg):
     h = arg.num_heads
     depth = arg.depth
     max_size=arg.max_length
-    previous_best = inf
 
     data_set = TranslationDataSet(input_file, arg.source, arg.target, vocab_src, vocab_tgt, max_size,
                                   add_sos_and_eos=True)
 
-    # bucket_boundaries = [50, 100, 125, 150, 175, 200, 250, 300]
-    # batch_sizes = 32
-    # sampler = BySequenceLengthSampler(data_set, bucket_boundaries, batch_sizes)
+    # bucket_boundaries = [i * 30 for i in range(20)]
+    # sampler = BySequenceLengthSampler(data_set, bucket_boundaries, batch_size)
+    # data_loader = DataLoader(data_set, collate_fn=my_collate, batch_sampler=sampler)
 
-    bucket_boundaries = [i * 30 for i in range(20)]
-    sampler = BySequenceLengthSampler(data_set, bucket_boundaries, batch_size)
+    data_loader = DataLoader(data_set,
+                             batch_size=batch_size,
+                             collate_fn=my_collate,
+                             num_workers=0,
+                             drop_last=False,
+                             pin_memory=False, )
 
-    data_loader = DataLoader(data_set, collate_fn=my_collate, batch_sampler=sampler)
     vocab_size_src = len(vocab_src.stoi)
     vocab_size_tgt = len(vocab_tgt.stoi)
 
