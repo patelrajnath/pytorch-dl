@@ -160,7 +160,7 @@ def decode(arg):
                                       num_emb_target=vocab_size_tgt, max_len=max_size,
                                       mask_future_steps=True)
 
-    load_model_state(os.path.join(model_dir, 'checkpoints_best.pt'), model, data_parallel=False)
+    load_model_state(os.path.join(model_dir, 'checkpoints_best.pt'), model, data_parallel=arg.data_parallel)
     model.eval()
 
     cuda_condition = torch.cuda.is_available() and not arg.cpu
