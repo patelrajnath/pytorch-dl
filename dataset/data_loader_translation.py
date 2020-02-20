@@ -18,12 +18,13 @@ from torch.utils.data.sampler import Sampler
 class BySequenceLengthSampler(Sampler):
 
     def __init__(self, data_source,
-                 bucket_boundaries, batch_size=64, ):
+                 bucket_boundaries, batch_size=64):
         super().__init__(data_source)
         self.data_source = data_source
         ind_n_len = []
-        for i, p in enumerate(data_source):
-            ind_n_len.append((i, p.shape[0]))
+        for i, batch in enumerate(data_source):
+            source, target = batch
+            ind_n_len.append((i, batch[source].shape[0]))
         self.ind_n_len = ind_n_len
         self.bucket_boundaries = bucket_boundaries
         self.batch_size = batch_size
@@ -44,8 +45,9 @@ class BySequenceLengthSampler(Sampler):
         iter_list = []
         for k in data_buckets.keys():
             np.random.shuffle(data_buckets[k])
-            iter_list += (np.array_split(data_buckets[k]
-                                         , int(data_buckets[k].shape[0] / self.batch_size)))
+            if data_buckets[k].shape[0] > 0:
+                iter_list += (np.array_split(data_buckets[k],
+                                             int(data_buckets[k].shape[0] / self.batch_size)))
         shuffle(iter_list)  # shuffle all the batches so they arent ordered by bucket
         # size
         for i in iter_list:

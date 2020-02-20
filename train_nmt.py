@@ -29,16 +29,21 @@ from dataset.vocab import WordVocab
 from models.utils.model_utils import save_state, load_model_state, get_masks, my_collate, get_perplexity
 from optim.lr_warm_up import GradualWarmupScheduler
 
+model_dir = "nmt"
+try:
+    os.makedirs(model_dir)
+except OSError:
+    pass
 
 def train(arg):
     input_file = arg.path
     for lang in (arg.source, arg.target):
         with open(input_file + '.' + lang) as f:
             vocab = WordVocab(f)
-            vocab.save_vocab("sample-data/{}.pkl".format(lang))
+            vocab.save_vocab("{}/{}.pkl".format(model_dir, lang))
 
-    vocab_src = WordVocab.load_vocab("sample-data/{}.pkl".format(arg.source))
-    vocab_tgt = WordVocab.load_vocab("sample-data/{}.pkl".format(arg.target))
+    vocab_src = WordVocab.load_vocab("{}/{}.pkl".format(model_dir, arg.source))
+    vocab_tgt = WordVocab.load_vocab("{}/{}.pkl".format(model_dir, arg.target))
 
     lr_warmup = arg.lr_warmup
     batch_size = arg.batch_size
@@ -46,28 +51,19 @@ def train(arg):
     h = arg.num_heads
     depth = arg.depth
     max_size=arg.max_length
-    model_dir = "nmt"
-    try:
-        os.makedirs(model_dir)
-    except OSError:
-        pass
-
-    previous_best = inf
 
     data_set = TranslationDataSet(input_file, arg.source, arg.target, vocab_src, vocab_tgt, max_size,
                                   add_sos_and_eos=True)
 
-    # bucket_boundaries = [50, 100, 125, 150, 175, 200, 250, 300]
-    # batch_sizes = 32
-    # sampler = BySequenceLengthSampler(data_set, bucket_boundaries, batch_sizes)
+    # bucket_boundaries = [i * 30 for i in range(20)]
+    # sampler = BySequenceLengthSampler(data_set, bucket_boundaries, batch_size)
+    # data_loader = DataLoader(data_set, collate_fn=my_collate, batch_sampler=sampler)
 
-    data_loader = DataLoader(data_set, batch_size=batch_size,
+    data_loader = DataLoader(data_set,
+                             batch_size=batch_size,
                              collate_fn=my_collate,
-                             num_workers=0,
-                             drop_last=False,
-                             pin_memory=False,
-                             shuffle=True
-                             )
+                             shuffle=True)
+
     vocab_size_src = len(vocab_src.stoi)
     vocab_size_tgt = len(vocab_tgt.stoi)
 
@@ -105,6 +101,7 @@ def train(arg):
 
     def truncate_division(x, y):
         return round(x/y, 2)
+
     previous_best = inf
     for epoch in range(start_epoch, arg.num_epochs):
         start = time.time()
@@ -140,7 +137,6 @@ def train(arg):
 
 
 def decode(arg):
-    model_dir = "/home/raj/PycharmProjects/models"
     vocab_src = WordVocab.load_vocab("{}/{}.pkl".format(model_dir, arg.source))
     vocab_tgt = WordVocab.load_vocab("{}/{}.pkl".format(model_dir, arg.target))
     batch_size = 1
@@ -155,32 +151,22 @@ def decode(arg):
     data_loader = DataLoader(data_set,
                              batch_size=batch_size,
                              collate_fn=my_collate,
-                             num_workers=0,
-                             drop_last=False,
-                             pin_memory=False,)
+                             shuffle=False)
     vocab_size_src = len(vocab_src.stoi)
     vocab_size_tgt = len(vocab_tgt.stoi)
 
     model = TransformerEncoderDecoder(k, h, depth=depth, num_emb=vocab_size_src,
                                       num_emb_target=vocab_size_tgt, max_len=max_size,
                                       mask_future_steps=True)
-    # Initialize parameters with Glorot / fan_avg.
-    # for p in model.parameters():
-    #     if p.dim() > 1:
-    #         nn.init.xavier_uniform_(p)
 
     load_model_state(os.path.join(model_dir, 'checkpoints_best.pt'), model, data_parallel=False)
+    model.eval()
+
     cuda_condition = torch.cuda.is_available() and not arg.cpu
     device = torch.device("cuda:0" if cuda_condition else "cpu")
 
     if cuda_condition:
         model.cuda()
-
-    model.eval()
-    # Setting the tqdm progress bar
-    # data_iter = tqdm.tqdm(enumerate(data_loader),
-    #                       desc="Decoding",
-    #                       total=len(data_loader))
 
     with torch.no_grad():
         for l, batch in enumerate(rebatch_data(pad_idx=1, batch=b, device=device) for b in data_loader):
@@ -201,6 +187,12 @@ def decode(arg):
             #                              early_stopping=False
             #                              )
 
+            print("Source:", end="\t")
+            for i in range(0, batch.src.size(1)):
+                sym = vocab_src.itos[batch.src[0, i]]
+                if sym == "<eos>": break
+                print(sym, end=" ")
+            print()
             print("Translation:", end="\t")
             for i in range(0, out.size(1)):
                 sym = vocab_tgt.itos[out[0, i]]
