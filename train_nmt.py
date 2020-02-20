@@ -77,7 +77,8 @@ def train(arg):
         if p.dim() > 1:
             nn.init.xavier_uniform_(p)
 
-    start_epoch = load_model_state(os.path.join(model_dir, 'checkpoints_best.pt'), model, data_parallel=False)
+    start_epoch = load_model_state(os.path.join(model_dir, 'checkpoints_best.pt'), model,
+                                   data_parallel=arg.data_parallel)
     # criterion = LabelSmoothedCrossEntropy(tgt_vocab_size=vocab_size_tgt, label_smoothing=arg.label_smoothing,
     #                                       ignore_index=vocab_tgt.pad_index)
     # criterion = nn.CrossEntropyLoss()

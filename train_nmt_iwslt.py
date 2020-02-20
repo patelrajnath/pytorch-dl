@@ -25,6 +25,12 @@ from models.transformer import TransformerEncoderDecoder
 from models.utils.model_utils import save_state, load_model_state, get_perplexity
 from optim.lr_warm_up import GradualWarmupScheduler
 
+model_dir = "transformer-model"
+try:
+    os.makedirs(model_dir)
+except OSError:
+    pass
+
 
 def train(arg):
     train, val, test, SRC, TGT = get_data()
@@ -39,10 +45,12 @@ def train(arg):
 
     n_batches = math.ceil(len(train) / BATCH_SIZE)
 
-    train_iter = MyIterator(train, batch_size=BATCH_SIZE, device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+    train_iter = MyIterator(train, batch_size=BATCH_SIZE,
+                            device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
                             repeat=False, sort_key=lambda x: (len(x.src), len(x.trg)),
                             batch_size_fn=batch_size_fn, train=True)
-    valid_iter = MyIterator(val, batch_size=BATCH_SIZE, device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+    valid_iter = MyIterator(val, batch_size=BATCH_SIZE,
+                            device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
                             repeat=False, sort_key=lambda x: (len(x.src), len(x.trg)),
                             batch_size_fn=batch_size_fn, train=True)
 
@@ -54,6 +62,9 @@ def train(arg):
     for p in model.parameters():
         if p.dim() > 1:
             nn.init.xavier_uniform_(p)
+
+    start_epoch = load_model_state(os.path.join(model_dir, 'checkpoints_best.pt'), model,
+                                   data_parallel=arg.data_parallel)
 
     criterion = LabelSmoothing(size=len(TGT.vocab), padding_idx=pad_idx, smoothing=0.1)
     optimizer = NoamOpt(model_dim, 1, 2000, torch.optim.Adam(model.parameters(), lr=0, betas=(0.9, 0.98), eps=1e-9))
@@ -75,11 +86,6 @@ def train(arg):
         print("Using %d GPUS for BERT" % torch.cuda.device_count())
         model = nn.DataParallel(model, device_ids=[0,1,2,3])
 
-    model_dir = "transformer-model"
-    try:
-        os.makedirs(model_dir)
-    except OSError:
-        pass
     previous_best = inf
 
     for epoch in range(1, arg.num_epochs):
