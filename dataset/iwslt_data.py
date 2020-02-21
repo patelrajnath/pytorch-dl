@@ -43,6 +43,12 @@ def get_data():
     MIN_FREQ = 2
     SRC.build_vocab(train.src, min_freq=MIN_FREQ)
     TGT.build_vocab(train.trg, min_freq=MIN_FREQ)
+    # The following works so we can simply apply spm here then
+    # assign back the segmented text
+    # for line in val:
+    #     line.src = "Hello"
+    # for line in val:
+    #     print(line.src)
     return train, val, test, SRC, TGT
 
 
