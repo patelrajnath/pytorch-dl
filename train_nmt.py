@@ -7,6 +7,7 @@ Date: January 26, 2020
 """
 import math
 import os
+import sys
 from argparse import ArgumentParser
 from math import inf
 import time
@@ -28,14 +29,15 @@ from torch.utils.data import DataLoader
 from dataset.vocab import WordVocab
 from models.utils.model_utils import save_state, load_model_state, get_masks, my_collate, get_perplexity
 from optim.lr_warm_up import GradualWarmupScheduler
+from options import get_parser
 
-model_dir = "nmt"
-try:
-    os.makedirs(model_dir)
-except OSError:
-    pass
 
 def train(arg):
+    model_dir = arg.model
+    try:
+        os.makedirs(model_dir)
+    except OSError:
+        pass
     input_file = arg.path
     for lang in (arg.source, arg.target):
         with open(input_file + '.' + lang) as f:
@@ -62,7 +64,7 @@ def train(arg):
     data_loader = DataLoader(data_set,
                              batch_size=batch_size,
                              collate_fn=my_collate,
-                             shuffle=True)
+                             shuffle=arg.shuffle)
 
     vocab_size_src = len(vocab_src.stoi)
     vocab_size_tgt = len(vocab_tgt.stoi)
@@ -76,7 +78,8 @@ def train(arg):
         if p.dim() > 1:
             nn.init.xavier_uniform_(p)
 
-    start_epoch = load_model_state(os.path.join(model_dir, 'checkpoints_best.pt'), model, data_parallel=False)
+    start_epoch = load_model_state(os.path.join(model_dir, 'checkpoints_best.pt'), model,
+                                   data_parallel=arg.data_parallel)
     # criterion = LabelSmoothedCrossEntropy(tgt_vocab_size=vocab_size_tgt, label_smoothing=arg.label_smoothing,
     #                                       ignore_index=vocab_tgt.pad_index)
     # criterion = nn.CrossEntropyLoss()
@@ -85,8 +88,15 @@ def train(arg):
     # scheduler_warmup = GradualWarmupScheduler(optimizer, multiplier=8, total_epoch=lr_warmup,
     #                                           after_scheduler=scheduler_cosine)
 
-    criterion = LabelSmoothing(size=len(vocab_tgt.stoi), padding_idx=1, smoothing=0.1)
-    optimizer = NoamOpt(arg.dim_model, 1, 2000, torch.optim.Adam(model.parameters(), lr=0, betas=(0.9, 0.98), eps=1e-9))
+    criterion = LabelSmoothing(size=len(vocab_tgt.stoi),
+                               padding_idx=vocab_tgt.pad_index,
+                               smoothing=arg.label_smoothing)
+
+    optimizer = NoamOpt(arg.dim_model, 1, 2000,
+                        torch.optim.Adam(model.parameters(),
+                                         lr=lr_warmup,
+                                         betas=(0.9, 0.98), eps=1e-9))
+
     compute_loss = SimpleLossCompute(model.generator, criterion, optimizer)
 
     cuda_condition = torch.cuda.is_available() and not arg.cpu
@@ -137,6 +147,7 @@ def train(arg):
 
 
 def decode(arg):
+    model_dir = arg.model
     vocab_src = WordVocab.load_vocab("{}/{}.pkl".format(model_dir, arg.source))
     vocab_tgt = WordVocab.load_vocab("{}/{}.pkl".format(model_dir, arg.target))
     batch_size = 1
@@ -151,7 +162,7 @@ def decode(arg):
     data_loader = DataLoader(data_set,
                              batch_size=batch_size,
                              collate_fn=my_collate,
-                             shuffle=False)
+                             shuffle=arg.shuffle)
     vocab_size_src = len(vocab_src.stoi)
     vocab_size_tgt = len(vocab_tgt.stoi)
 
@@ -159,7 +170,7 @@ def decode(arg):
                                       num_emb_target=vocab_size_tgt, max_len=max_size,
                                       mask_future_steps=True)
 
-    load_model_state(os.path.join(model_dir, 'checkpoints_best.pt'), model, data_parallel=False)
+    load_model_state(os.path.join(model_dir, 'checkpoints_best.pt'), model, data_parallel=arg.data_parallel)
     model.eval()
 
     cuda_condition = torch.cuda.is_available() and not arg.cpu
@@ -208,98 +219,17 @@ def decode(arg):
             break
 
 
+def main():
+    options = get_parser()
+    if options.train:
+        print('Launching training...')
+        train(options)
+    elif options.decode:
+        print('Launching decoding...')
+        decode(options)
+    else:
+        print("Specify either --train or --decode")
+
+
 if __name__ == "__main__":
-    parser = ArgumentParser()
-
-    parser.add_argument("-e", "--num-epochs",
-                        dest="num_epochs",
-                        help="Number of epochs.",
-                        default=30, type=int)
-
-    parser.add_argument("-b", "--batch-size",
-                        dest="batch_size",
-                        help="The batch size.",
-                        default=4, type=int)
-
-    parser.add_argument("--learn-rate",
-                        dest="lr",
-                        help="Learning rate",
-                        default=0.0005, type=float)
-
-    parser.add_argument("--dropout",
-                        dest="dropout",
-                        help="Learning rate",
-                        default=0.1, type=float)
-    parser.add_argument("--label-smoothing",
-                        dest="label_smoothing",
-                        help="Label smoothing rate",
-                        default=0.1, type=float)
-
-    parser.add_argument("-P", "--path", dest="path",
-                        help="sample training file",
-                        default='sample-data/europarl.enc')
-    parser.add_argument("-S", "--src", dest="source",
-                        help="source language",
-                        default='it')
-    parser.add_argument("-T", "--tgt", dest="target",
-                        help="target language",
-                        default='en')
-
-    parser.add_argument("-f", "--final", dest="final",
-                        help="Whether to run on the real test set (if not included, the validation set is used).",
-                        action="store_true")
-
-    parser.add_argument("--max-pool", dest="max_pool",
-                        help="Use max pooling in the final classification layer.",
-                        action="store_true")
-
-    parser.add_argument("--cpu", dest="cpu",
-                        help="Use cpu for training.",
-                        action="store_true")
-
-    parser.add_argument("-D", "--dim-model", dest="dim_model",
-                        help="model size.",
-                        default=512, type=int)
-
-    parser.add_argument("-V", "--vocab-size", dest="vocab_size",
-                        help="Number of words in the vocabulary.",
-                        default=50_000, type=int)
-
-    parser.add_argument("-M", "--max", dest="max_length",
-                        help="Max sequence length. Longer sequences are clipped (-1 for no limit).",
-                        default=160, type=int)
-
-    parser.add_argument("-H", "--heads", dest="num_heads",
-                        help="Number of attention heads.",
-                        default=8, type=int)
-
-    parser.add_argument("--depth", dest="depth",
-                        help="Depth of the network (nr. of self-attention layers)",
-                        default=6, type=int)
-
-    parser.add_argument("-r", "--random-seed",
-                        dest="seed",
-                        help="RNG seed. Negative for random",
-                        default=1, type=int)
-
-    parser.add_argument("--lr-warmup",
-                        dest="lr_warmup",
-                        help="Learning rate warmup.",
-                        default=4000, type=int)
-
-    parser.add_argument("--wait",
-                        dest="wait",
-                        help="Learning rate warmup.",
-                        default=1000, type=int)
-
-    parser.add_argument("--gradient-clipping",
-                        dest="gradient_clipping",
-                        help="Gradient clipping.",
-                        default=1.0, type=float)
-
-    options = parser.parse_args()
-
-    print('OPTIONS ', options)
-
-    train(options)
-    # decode(options)
+    main()
