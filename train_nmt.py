@@ -150,7 +150,7 @@ def decode(arg):
     model_dir = arg.model
     vocab_src = WordVocab.load_vocab("{}/{}.pkl".format(model_dir, arg.source))
     vocab_tgt = WordVocab.load_vocab("{}/{}.pkl".format(model_dir, arg.target))
-    batch_size = 1
+    batch_size = 5
     k = arg.dim_model
     h = arg.num_heads
     depth = arg.depth
@@ -181,11 +181,11 @@ def decode(arg):
 
     with torch.no_grad():
         for l, batch in enumerate(rebatch_data(pad_idx=1, batch=b, device=device) for b in data_loader):
-            out = greedy_decode(model, batch.src, batch.src_mask, start_symbol=vocab_tgt.sos_index)
-            # out = batch_decode(model, batch.src, batch.src_mask, batch.src_len,
-            #                    pad_index=vocab_tgt.pad_index,
-            #                    sos_index=vocab_tgt.sos_index,
-            #                    eos_index=vocab_tgt.eos_index)
+            # out = greedy_decode(model, batch.src, batch.src_mask, start_symbol=vocab_tgt.sos_index)
+            out = batch_decode(model, batch.src, batch.src_mask, batch.src_len,
+                               pad_index=vocab_tgt.pad_index,
+                               sos_index=vocab_tgt.sos_index,
+                               eos_index=vocab_tgt.eos_index)
 
             # out, lengths = generate_beam(model, batch.src, batch.src_mask, batch.src_len,
             #                              pad_index = vocab_tgt.pad_index,
@@ -197,25 +197,30 @@ def decode(arg):
             #                              length_penalty=False,
             #                              early_stopping=False
             #                              )
-
-            print("Source:", end="\t")
-            for i in range(0, batch.src.size(1)):
-                sym = vocab_src.itos[batch.src[0, i]]
-                if sym == "<eos>": break
-                print(sym, end=" ")
-            print()
-            print("Translation:", end="\t")
-            for i in range(0, out.size(1)):
-                sym = vocab_tgt.itos[out[0, i]]
-                if sym == "<eos>": break
-                print(sym, end=" ")
-            print()
-            print("Target:", end="\t")
-            for i in range(0, batch.trg.size(1)):
-                sym = vocab_tgt.itos[batch.trg[0, i]]
-                if sym == "<pad>": break
-                print(sym, end=" ")
-            print()
+            print(out.size())
+            for i in range(0, out.size(0)):
+                print("Source:", end="\t")
+                src = list()
+                for j in range(0, batch.src.size(1)):
+                    sym = vocab_src.itos[batch.src[i, j]]
+                    if sym == "<eos>": break
+                    src.append(sym)
+                print(' '.join(src).replace(' ', '').replace('▁', ' '))
+                print("Translation:", end="\t")
+                transl = list()
+                for j in range(0, out.size(1)):
+                    sym = vocab_tgt.itos[out[i, j]]
+                    if sym == "<eos>": break
+                    transl.append(sym)
+                print(' '.join(transl).replace(' ', '').replace('▁', ' '))
+                trg = list()
+                print("Target:", end="\t")
+                for j in range(0, batch.trg.size(1)):
+                    sym = vocab_tgt.itos[batch.trg[i, j]]
+                    if sym == "<pad>": break
+                    trg.append(sym)
+                print(' '.join(trg).replace(' ', '').replace('▁', ' '))
+                print()
             break
 
 
