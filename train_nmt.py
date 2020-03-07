@@ -17,7 +17,7 @@ from torch.autograd import Variable
 from criterion.label_smoothed_cross_entropy import LabelSmoothedCrossEntropy
 from dataset.data_loader_translation import TranslationDataSet, BySequenceLengthSampler
 from dataset.iwslt_data import rebatch_data, subsequent_mask, LabelSmoothing, NoamOpt, SimpleLossCompute
-from models.decoding import batch_decode, greedy_decode, generate_beam
+from models.decoding import batch_decode, greedy_decode, generate_beam, beam_decode
 from models.transformer import TransformerEncoderDecoder
 import torch.nn.functional as F
 import torch
@@ -150,7 +150,7 @@ def decode(arg):
     model_dir = arg.model
     vocab_src = WordVocab.load_vocab("{}/{}.pkl".format(model_dir, arg.source))
     vocab_tgt = WordVocab.load_vocab("{}/{}.pkl".format(model_dir, arg.target))
-    batch_size = 5
+    batch_size = 1
     k = arg.dim_model
     h = arg.num_heads
     depth = arg.depth
@@ -182,7 +182,7 @@ def decode(arg):
     with torch.no_grad():
         for l, batch in enumerate(rebatch_data(pad_idx=1, batch=b, device=device) for b in data_loader):
             # out = greedy_decode(model, batch.src, batch.src_mask, start_symbol=vocab_tgt.sos_index)
-            out = batch_decode(model, batch.src, batch.src_mask, batch.src_len,
+            out = beam_decode(model, batch.src, batch.src_mask, batch.src_len,
                                pad_index=vocab_tgt.pad_index,
                                sos_index=vocab_tgt.sos_index,
                                eos_index=vocab_tgt.eos_index)
