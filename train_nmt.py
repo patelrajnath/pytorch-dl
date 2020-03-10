@@ -182,6 +182,10 @@ def decode(arg):
     with torch.no_grad():
         for l, batch in enumerate(rebatch_data(pad_idx=1, batch=b, device=device) for b in data_loader):
             # out = greedy_decode(model, batch.src, batch.src_mask, start_symbol=vocab_tgt.sos_index)
+            # out = batch_decode(model, batch.src, batch.src_mask, batch.src_len,
+            #                    pad_index=vocab_tgt.pad_index,
+            #                    sos_index=vocab_tgt.sos_index,
+            #                    eos_index=vocab_tgt.eos_index)
             out = beam_decode(model, batch.src, batch.src_mask, batch.src_len,
                                pad_index=vocab_tgt.pad_index,
                                sos_index=vocab_tgt.sos_index,
@@ -197,8 +201,8 @@ def decode(arg):
             #                              length_penalty=False,
             #                              early_stopping=False
             #                              )
-            print(out.size())
-            for i in range(0, out.size(0)):
+
+            for i in range(0, batch.src.size(0)):
                 print("Source:", end="\t")
                 src = list()
                 for j in range(0, batch.src.size(1)):
@@ -206,13 +210,6 @@ def decode(arg):
                     if sym == "<eos>": break
                     src.append(sym)
                 print(' '.join(src).replace(' ', '').replace('▁', ' '))
-                print("Translation:", end="\t")
-                transl = list()
-                for j in range(0, out.size(1)):
-                    sym = vocab_tgt.itos[out[i, j]]
-                    if sym == "<eos>": break
-                    transl.append(sym)
-                print(' '.join(transl).replace(' ', '').replace('▁', ' '))
                 trg = list()
                 print("Target:", end="\t")
                 for j in range(0, batch.trg.size(1)):
@@ -220,9 +217,19 @@ def decode(arg):
                     if sym == "<pad>": break
                     trg.append(sym)
                 print(' '.join(trg).replace(' ', '').replace('▁', ' '))
+
+            print(out.size())
+            for i in range(0, out.size(0)):
+                print("Translation:", end="\t")
+                transl = list()
+                for j in range(0, out.size(1)):
+                    sym = vocab_tgt.itos[out[i, j]]
+                    if sym == "<eos>": break
+                    transl.append(sym)
+                print(' '.join(transl).replace(' ', '').replace('▁', ' '))
                 print()
             break
-
+            
 
 def main():
     options = get_parser()
