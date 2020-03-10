@@ -83,8 +83,8 @@ def beam_decode(model, src_tokens, src_mask, src_len, pad_index, sos_index, eos_
 
     bs = 5
     src_enc = model.encoder(src_tokens, src_mask)
-    print('enc-size', src_enc.shape)
-    print('src-mask', src_mask.shape)
+    # print('enc-size', src_enc.shape)
+    # print('src-mask', src_mask.shape)
     src_enc = src_enc.squeeze()
     src_mask = src_mask.squeeze()
     # print(src_enc.unsqueeze(0).shape[0:])
@@ -97,8 +97,8 @@ def beam_decode(model, src_tokens, src_mask, src_len, pad_index, sos_index, eos_
 
     # enc-size: torch.Size([5, 57, 512])
     # src-mask: torch.Size([5, 1, 57])
-    print('enc-size', src_enc.shape)
-    print('src-mask', src_mask.shape)
+    # print('enc-size', src_enc.shape)
+    # print('src-mask', src_mask.shape)
     assert src_enc.size(0) == bs
 
     # generated sentences
@@ -112,10 +112,10 @@ def beam_decode(model, src_tokens, src_mask, src_len, pad_index, sos_index, eos_
     # print(unfinished_sents)
 
     while cur_len < max_len:
-        print(generated[:cur_len].transpose(0, 1))
+        # print(generated[:cur_len].transpose(0, 1))
         # compute word scores
         trg_mask = subsequent_mask(cur_len).type_as(src_tokens.data)
-        print('trg mask', trg_mask.shape)
+        # print('trg mask', trg_mask.shape)
         tensor = model.decoder(
             tokens=Variable(generated[:cur_len].transpose(0, 1)),
             memory=src_enc,
@@ -129,9 +129,8 @@ def beam_decode(model, src_tokens, src_mask, src_len, pad_index, sos_index, eos_
         print(prob.shape, logit.shape)
         # x, next_word = torch.max(prob, dim=1)
         next_words = torch.topk(prob, 1)[1].squeeze(1)
-        print(next_words)
-        print(next_words, generated[:cur_len])
-        exit(0)
+        # print(next_words, generated[:cur_len])
+        # exit(0)
 
         # update generations / lengths / finished sentences / current length
         # print(next_words * unfinished_sents)
@@ -139,6 +138,7 @@ def beam_decode(model, src_tokens, src_mask, src_len, pad_index, sos_index, eos_
         gen_len.add_(unfinished_sents)
         # unfinished_sents.mul_(next_words.ne(eos_index).long())
         cur_len = cur_len + 1
+        print(generated)
 
         # break
         # assert tensor.size() == (1, bs, self.dim), (cur_len, max_len,
