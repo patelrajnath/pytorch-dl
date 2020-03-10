@@ -77,7 +77,7 @@ def batch_decode(model, src_tokens, src_mask, src_len, pad_index, sos_index, eos
     return generated.transpose(0, 1)
 
 
-def beam_decode(model, src_tokens, src_mask, src_len, pad_index, sos_index, eos_index, max_len=60):
+def beam_decode(model, src_tokens, src_mask, src_len, pad_index, sos_index, eos_index, max_len=60, n_words=None):
     # input batch
     bs = len(src_len)
 
@@ -111,6 +111,12 @@ def beam_decode(model, src_tokens, src_mask, src_len, pad_index, sos_index, eos_
     unfinished_sents = src_len.clone().fill_(1)
     # print(unfinished_sents)
 
+    # scores for each sentence in the beam
+    beam_scores = src_enc.new(bs,).fill_(0)
+    beam_scores[0] = -1e9
+    beam_scores = beam_scores.view(-1)
+    print(beam_scores)
+
     while cur_len < max_len:
         # print(generated[:cur_len].transpose(0, 1))
         # compute word scores
@@ -129,8 +135,26 @@ def beam_decode(model, src_tokens, src_mask, src_len, pad_index, sos_index, eos_
         print(prob.shape, logit.shape)
         # x, next_word = torch.max(prob, dim=1)
         next_words = torch.topk(prob, 1)[1].squeeze(1)
-        # print(next_words, generated[:cur_len])
-        # exit(0)
+        next_scores, next_words = torch.topk(prob, 2 * bs, dim=1, largest=True, sorted=True)
+        print(next_words.shape, next_scores.shape)
+
+        next_batch_beam = []
+        # next sentence beam content
+        next_sent_beam = []
+        # next words for this sentence
+        for idx, value in zip(next_words, next_scores):
+            # get beam and word IDs
+            beam_id = idx // n_words
+            word_id = idx % n_words
+            next_sent_beam.append((value, word_id,  bs + beam_id))
+        # next_batch_beam.extend(next_sent_beam)
+        # print(next_sent_beam)
+        for x in next_sent_beam:
+            print(x[0])
+        beam_scores = beam_scores.new([x[0] for x in next_sent_beam])
+        beam_words = generated.new(next_sent_beam[1])
+        beam_idx = src_len.new(next_sent_beam[2])
+        exit(0)
 
         # update generations / lengths / finished sentences / current length
         # print(next_words * unfinished_sents)

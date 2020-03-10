@@ -189,7 +189,7 @@ def decode(arg):
             out = beam_decode(model, batch.src, batch.src_mask, batch.src_len,
                                pad_index=vocab_tgt.pad_index,
                                sos_index=vocab_tgt.sos_index,
-                               eos_index=vocab_tgt.eos_index)
+                               eos_index=vocab_tgt.eos_index, n_words=vocab_size_tgt)
 
             # out, lengths = generate_beam(model, batch.src, batch.src_mask, batch.src_len,
             #                              pad_index = vocab_tgt.pad_index,
