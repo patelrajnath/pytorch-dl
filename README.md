@@ -35,7 +35,7 @@ python3 pretrain_mbert.py
 ## Author
 Raj Nath Patel (patelrajnath@gmail.com)
 
-Linkedin: https://www.linkedin.com/in/raj-nath-patel-2262b024/
+Linkedin: https://ie.linkedin.com/in/raj-nath-patel-2262b024
 
 ## Version
 0.1
