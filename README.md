@@ -3,8 +3,8 @@ This project implements the classification task using Transformer model. On IMDB
 
 It also contains BERT training- 
 * Bert encoder ([Default Bert](https://arxiv.org/pdf/1810.04805.pdf))
-* Bert encoder-decoder ([mBert](https://arxiv.org/pdf/2001.08210.pdf))
-* Fine tuning mBert for Neural MT (In progress)
+* Bert encoder-decoder ([mBart](https://arxiv.org/pdf/2001.08210.pdf))
+* Fine tuning mBart for Neural MT
 
 ## Prerequisite
 - python (3.6+)
