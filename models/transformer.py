@@ -10,10 +10,8 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-from models.embeddings.mbert_embeddings import MBertEmbeddings
 from models.embeddings.position_emb import PositionalEncoding
 from models.embeddings.token_emb import Embeddings
-from models.utils.model_utils import d, get_masks, mask_
 
 
 class SelfAttention(nn.Module):
@@ -83,8 +81,12 @@ class TransformerBlock(nn.Module):
         self.do = nn.Dropout(dropout)
 
     def forward(self, tensor, mask=None):
+        # Add and layer normalize: Normalize + Layer + Dropout
         tensor = tensor + self.do(self.attention(self.norm1(tensor), mask))
+
+        # Add and layer normalize: Normalize + Layer + Dropout
         tensor = tensor + self.do(self.ff(self.norm2(tensor)))
+
         return tensor
 
 
@@ -113,13 +115,13 @@ class TransformerBlockDecoder(nn.Module):
         self.do = nn.Dropout(dropout)
 
     def forward(self, tensor, memory, src_mask, trg_mask):
-        # Add and layer normalize
+        # Add and layer normalize: Normalize + Layer + Dropout
         tensor = tensor + self.do(self.attention(self.norm1(tensor), trg_mask))
 
-        # Add and layer normalize
+        # Add and layer normalize: Normalize + Layer + Dropout
         tensor = tensor + self.do(self.attention_encoder_decoder(self.norm2(tensor), src_mask, memory))
 
-        # Run feed-forward
+        # Run feed-forward: Normalize + Layer + Dropout
         tensor = tensor + self.do(self.ff(self.norm3(tensor)))
         return tensor
 
