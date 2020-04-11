@@ -77,6 +77,101 @@ def batch_decode(model, src_tokens, src_mask, src_len, pad_index, sos_index, eos
     return generated.transpose(0, 1)
 
 
+def beam_decode(model, src_tokens, src_mask, src_len, pad_index, sos_index, eos_index, max_len=60, n_words=None):
+    # input batch
+    bs = len(src_len)
+
+    bs = 5
+    src_enc = model.encoder(src_tokens, src_mask)
+    # print('enc-size', src_enc.shape)
+    # print('src-mask', src_mask.shape)
+    src_enc = src_enc.squeeze()
+    src_mask = src_mask.squeeze()
+    # print(src_enc.unsqueeze(0).shape[0:])
+    # print(src_mask.shape)
+    src_mask = src_mask.unsqueeze(0).expand((bs,) + src_mask.shape).contiguous().view((bs, 1) + src_mask.shape)
+    src_enc = src_enc.unsqueeze(0).expand((bs,) + src_enc.shape).contiguous().view((bs,) + src_enc.shape)
+    # beam_size=1
+    # src_enc = src_enc.unsqueeze(1).expand((bs, beam_size) + src_enc.shape[1:]).contiguous().view(
+    #     (bs * beam_size,) + src_enc.shape[1:])
+
+    # enc-size: torch.Size([5, 57, 512])
+    # src-mask: torch.Size([5, 1, 57])
+    # print('enc-size', src_enc.shape)
+    # print('src-mask', src_mask.shape)
+    assert src_enc.size(0) == bs
+
+    # generated sentences
+    generated = src_len.new(max_len, bs)  # upcoming output
+    generated.fill_(pad_index)  # fill upcoming ouput with <PAD>
+    generated[0].fill_(sos_index)  # fill 0th index with <SOS>
+
+    cur_len = 1
+    gen_len = src_len.clone().fill_(1)
+    unfinished_sents = src_len.clone().fill_(1)
+    # print(unfinished_sents)
+
+    # scores for each sentence in the beam
+    beam_scores = src_enc.new(bs,).fill_(0)
+    beam_scores[0] = -1e9
+    beam_scores = beam_scores.view(-1)
+    print(beam_scores)
+
+    while cur_len < max_len:
+        # print(generated[:cur_len].transpose(0, 1))
+        # compute word scores
+        trg_mask = subsequent_mask(cur_len).type_as(src_tokens.data)
+        # print('trg mask', trg_mask.shape)
+        tensor = model.decoder(
+            tokens=Variable(generated[:cur_len].transpose(0, 1)),
+            memory=src_enc,
+            src_mask=src_mask,
+            trg_mask=Variable(trg_mask),
+        )
+        print(tensor.shape)
+        tensor = tensor.data[:, -1].type_as(src_enc)  # (bs, dim)
+        print(tensor.shape)
+        prob, logit = model.generator(tensor)
+        print(prob.shape, logit.shape)
+        # x, next_word = torch.max(prob, dim=1)
+        next_words = torch.topk(prob, 1)[1].squeeze(1)
+        next_scores, next_words = torch.topk(prob, 2 * bs, dim=1, largest=True, sorted=True)
+        print(next_words.shape, next_scores.shape)
+
+        next_batch_beam = []
+        # next sentence beam content
+        next_sent_beam = []
+        # next words for this sentence
+        for idx, value in zip(next_words, next_scores):
+            # get beam and word IDs
+            beam_id = idx // n_words
+            word_id = idx % n_words
+            next_sent_beam.append((value, word_id,  bs + beam_id))
+        # next_batch_beam.extend(next_sent_beam)
+        # print(next_sent_beam)
+        for x in next_sent_beam:
+            print(x[0])
+        beam_scores = beam_scores.new([x[0] for x in next_sent_beam])
+        beam_words = generated.new(next_sent_beam[1])
+        beam_idx = src_len.new(next_sent_beam[2])
+        exit(0)
+
+        # update generations / lengths / finished sentences / current length
+        # print(next_words * unfinished_sents)
+        generated[cur_len] = next_words * unfinished_sents + pad_index * (1 - unfinished_sents)
+        gen_len.add_(unfinished_sents)
+        # unfinished_sents.mul_(next_words.ne(eos_index).long())
+        cur_len = cur_len + 1
+        print(generated)
+
+        # break
+        # assert tensor.size() == (1, bs, self.dim), (cur_len, max_len,
+        #                                             src_enc.size(), tensor.size(), (1, bs, self.dim))
+        # tensor = tensor.data[-1, :, :].type_as(src_enc)  # (bs, dim)
+        # scores = self.pred_layer.get_scores(tensor)      # (bs, n_words)
+    return generated.transpose(0, 1)
+
+
 def generate_beam(model, src, src_mask, src_len,
                   pad_index,
                   sos_index,
