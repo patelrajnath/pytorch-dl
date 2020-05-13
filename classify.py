@@ -92,7 +92,7 @@ def go(arg):
                 nn.utils.clip_grad_norm_(model.parameters(), arg.gradient_clipping)
 
             opt.step()
-            sch.step(epoch=e)
+            sch.step()
 
             seen += input.size(0)
             # tbw.add_scalar('classification/train-loss', float(loss.item()), seen)
