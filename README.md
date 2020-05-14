@@ -4,7 +4,7 @@ This project implements the classification task using Transformer model. On IMDB
 It also contains BERT training- 
 * Bert encoder ([Default Bert](https://arxiv.org/pdf/1810.04805.pdf))
 * Bert encoder-decoder ([mBart](https://arxiv.org/pdf/2001.08210.pdf))
-* Fine tuning mBart for Neural MT
+* Training and fine tuning mBart for Neural MT
 
 ## Prerequisite
 - python (3.6+)
@@ -47,5 +47,5 @@ Pytorch-dl is a free software: you can redistribute it and/or modify it under th
 License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any 
 later version.
 
-You should have received a copy of the GNU General Public License along with Indic NLP Library. 
+You should have received a copy of the GNU General Public License along with Pytorct-dl project. 
 If not, see http://www.gnu.org/licenses/.
