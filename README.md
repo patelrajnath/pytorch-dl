@@ -47,5 +47,5 @@ Pytorch-dl is a free software: you can redistribute it and/or modify it under th
 License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any 
 later version.
 
-You should have received a copy of the GNU General Public License along with Pytorct-dl project. 
+You should have received a copy of the GNU General Public License along with Pytorch-dl project. 
 If not, see http://www.gnu.org/licenses/.
