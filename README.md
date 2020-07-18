@@ -16,6 +16,7 @@ It also contains BERT training-
 ##### INSTALL Dependencies
 ```bash
 pip3 install -r requirements.txt
+python -m spacy download en
 ```
 ##### IMDB classification:
 ```bash
