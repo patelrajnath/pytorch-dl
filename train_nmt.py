@@ -186,10 +186,45 @@ def decode(arg):
             #                    pad_index=vocab_tgt.pad_index,
             #                    sos_index=vocab_tgt.sos_index,
             #                    eos_index=vocab_tgt.eos_index)
-            out = beam_decode(model, batch.src, batch.src_mask, batch.src_len,
-                               pad_index=vocab_tgt.pad_index,
-                               sos_index=vocab_tgt.sos_index,
-                               eos_index=vocab_tgt.eos_index, n_words=vocab_size_tgt)
+
+            def beam_search():
+                max=20
+                beam_size=5
+                topk = [[[], .0, None]]  # [sequence, score, key_states]
+
+                memory = model.encoder(batch.src, batch.src_mask)
+                input_tokens = torch.ones(1, 1).fill_(vocab_tgt.sos_index).type_as(batch.src.data)
+
+                for _ in range(max):
+                    candidates = []
+                    for i, (seq, score, key_states) in enumerate(topk):
+                        # get decoder output
+                        if seq:
+                            input_tokens = seq[-1].unsqueeze(0).unsqueeze(0)
+
+                        # get decoder output
+                        out = model.decoder(Variable(input_tokens), memory, batch.src_mask,
+                                            Variable(subsequent_mask(input_tokens.size(1)).type_as(batch.src.data)))
+                        states = out[:, -1]
+
+                        prob, logit = model.generator(states)
+                        output = prob[0]
+
+                        # calculate scores
+                        for (idx, val) in enumerate(output):
+                            candidate = [seq + [torch.tensor(idx).to(output.device)], score + val.item(), i]
+                            candidates.append(candidate)
+
+                        # order all candidates by score, select k-best
+                        topk = sorted(candidates, key=lambda x: x[1], reverse=True)[:beam_size]
+
+                return [idx.item() for idx in topk[0][0]]
+
+            out = beam_search()
+            # out = beam_decode(model, batch.src, batch.src_mask, batch.src_len,
+            #                    pad_index=vocab_tgt.pad_index,
+            #                    sos_index=vocab_tgt.sos_index,
+            #                    eos_index=vocab_tgt.eos_index, n_words=vocab_size_tgt)
 
             # out, lengths = generate_beam(model, batch.src, batch.src_mask, batch.src_len,
             #                              pad_index = vocab_tgt.pad_index,
@@ -218,18 +253,16 @@ def decode(arg):
                     trg.append(sym)
                 print(' '.join(trg).replace(' ', '').replace('▁', ' '))
 
-            print(out.size())
-            for i in range(0, out.size(0)):
+            for i in range(0, 1):
                 print("Translation:", end="\t")
                 transl = list()
-                for j in range(0, out.size(1)):
-                    sym = vocab_tgt.itos[out[i, j]]
+                for j in range(0, len(out)):
+                    sym = vocab_tgt.itos[out[j]]
                     if sym == "<eos>": break
                     transl.append(sym)
                 print(' '.join(transl).replace(' ', '').replace('▁', ' '))
                 print()
             break
-            
 
 def main():
     options = get_parser()
