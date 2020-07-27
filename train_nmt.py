@@ -40,7 +40,7 @@ def train(arg):
         pass
     input_file = arg.path
     for lang in (arg.source, arg.target):
-        with open(input_file + '.' + lang) as f:
+        with open(input_file + '.' + lang, encoding='utf-8') as f:
             vocab = WordVocab(f)
             vocab.save_vocab("{}/{}.pkl".format(model_dir, lang))
 
@@ -181,13 +181,14 @@ def decode(arg):
 
     with torch.no_grad():
         for l, batch in enumerate(rebatch_data(pad_idx=1, batch=b, device=device) for b in data_loader):
-            # out = greedy_decode(model, batch.src, batch.src_mask, start_symbol=vocab_tgt.sos_index)
+            out = greedy_decode(model, batch.src, batch.src_mask, start_symbol=vocab_tgt.sos_index)
             # out = batch_decode(model, batch.src, batch.src_mask, batch.src_len,
             #                    pad_index=vocab_tgt.pad_index,
             #                    sos_index=vocab_tgt.sos_index,
             #                    eos_index=vocab_tgt.eos_index)
+
             def beam_search():
-                max=20
+                max=120
                 beam_size=5
                 topk = [[[], .0, None]]  # [sequence, score, key_states]
 
@@ -219,6 +220,7 @@ def decode(arg):
 
                 return [idx.item() for idx in topk[0][0]]
 
+            use_beam_search=True
             out = beam_search()
 
             for i in range(0, batch.src.size(0)):
@@ -237,15 +239,26 @@ def decode(arg):
                     trg.append(sym)
                 print(' '.join(trg).replace(' ', '').replace('▁', ' '))
 
-            for i in range(0, 1):
-                print("Translation:", end="\t")
-                transl = list()
-                for j in range(0, len(out)):
-                    sym = vocab_tgt.itos[out[j]]
-                    if sym == "<eos>": break
-                    transl.append(sym)
-                print(' '.join(transl).replace(' ', '').replace('▁', ' '))
-                print()
+            if use_beam_search:
+                for i in range(0, 1):
+                    print("Translation:", end="\t")
+                    transl = list()
+                    for j in range(0, len(out)):
+                        sym = vocab_tgt.itos[out[j]]
+                        if sym == "<eos>": break
+                        transl.append(sym)
+                    print(' '.join(transl).replace(' ', '').replace('▁', ' '))
+                    print()
+            else:
+                for i in range(0, batch.trg.size(0)):
+                    print("Translation:", end="\t")
+                    transl = list()
+                    for j in range(0, batch.trg.size(1)):
+                        sym = vocab_tgt.itos[out[i, j]]
+                        if sym == "<eos>": break
+                        transl.append(sym)
+                    print(' '.join(transl).replace(' ', '').replace('▁', ' '))
+                    print()
             break
 
 
