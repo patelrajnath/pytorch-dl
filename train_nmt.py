@@ -198,9 +198,9 @@ def decode(arg):
                 for _ in range(max):
                     candidates = []
                     for i, (seq, score, key_states) in enumerate(topk):
-                        # get decoder output
                         if seq:
-                            input_tokens = seq[-1].unsqueeze(0).unsqueeze(0)
+                            seq_tensor = torch.stack(seq)
+                            input_tokens = seq_tensor.unsqueeze(0)
 
                         # get decoder output
                         out = model.decoder(Variable(input_tokens), memory, batch.src_mask,
@@ -263,6 +263,7 @@ def decode(arg):
                 print(' '.join(transl).replace(' ', '').replace('▁', ' '))
                 print()
             break
+
 
 def main():
     options = get_parser()
