@@ -186,7 +186,6 @@ def decode(arg):
             #                    pad_index=vocab_tgt.pad_index,
             #                    sos_index=vocab_tgt.sos_index,
             #                    eos_index=vocab_tgt.eos_index)
-
             def beam_search():
                 max=20
                 beam_size=5
@@ -199,8 +198,8 @@ def decode(arg):
                     candidates = []
                     for i, (seq, score, key_states) in enumerate(topk):
                         if seq:
-                            seq_tensor = torch.stack(seq)
-                            input_tokens = seq_tensor.unsqueeze(0)
+                            # convert list of tensors to tensor list and add a new dimension for batch
+                            input_tokens = torch.stack(seq).unsqueeze(0)
 
                         # get decoder output
                         out = model.decoder(Variable(input_tokens), memory, batch.src_mask,
@@ -221,21 +220,6 @@ def decode(arg):
                 return [idx.item() for idx in topk[0][0]]
 
             out = beam_search()
-            # out = beam_decode(model, batch.src, batch.src_mask, batch.src_len,
-            #                    pad_index=vocab_tgt.pad_index,
-            #                    sos_index=vocab_tgt.sos_index,
-            #                    eos_index=vocab_tgt.eos_index, n_words=vocab_size_tgt)
-
-            # out, lengths = generate_beam(model, batch.src, batch.src_mask, batch.src_len,
-            #                              pad_index = vocab_tgt.pad_index,
-            #                              sos_index = vocab_tgt.sos_index,
-            #                              eos_index = vocab_tgt.eos_index,
-            #                              emb_dim=k,
-            #                              vocab_size=vocab_size_tgt,
-            #                              beam_size=5,
-            #                              length_penalty=False,
-            #                              early_stopping=False
-            #                              )
 
             for i in range(0, batch.src.size(0)):
                 print("Source:", end="\t")
