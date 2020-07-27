@@ -19,8 +19,8 @@ import numpy as np
 
 def get_data():
     import spacy
-    spacy_de = spacy.load('de')
-    spacy_en = spacy.load('en')
+    spacy_de = spacy.load('de_core_news_sm')
+    spacy_en = spacy.load('en_core_web_sm')
 
     def tokenize_de(text):
         return [tok.text for tok in spacy_de.tokenizer(text)]
