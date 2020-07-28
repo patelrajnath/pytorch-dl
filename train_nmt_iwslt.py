@@ -133,7 +133,7 @@ def decode(arg):
     model_dir = arg.model
     train, val, test, SRC, TGT = get_data()
     pad_idx = TGT.vocab.stoi["<blank>"]
-    BATCH_SIZE = arg.batch_size
+    BATCH_SIZE = 1
     model_dim = arg.dim_model
     heads = arg.num_heads
     depth = arg.depth
@@ -174,29 +174,74 @@ def decode(arg):
     #                       total=len(data_loader))
 
     with torch.no_grad():
-        for k, batch in enumerate(valid_iter):
-            src = batch.src.transpose(0, 1)[:1]
-            src_mask = (src != SRC.vocab.stoi["<blank>"]).unsqueeze(-2)
-            out = greedy_decode(model, src, src_mask, start_symbol=TGT.vocab.stoi["<sos>"])
+        for k, batch in enumerate(rebatch(pad_idx, b, device=device) for b in train_iter):
+            # out = greedy_decode(model, src, src_mask, start_symbol=TGT.vocab.stoi["<sos>"])
+            start_symbol = TGT.vocab.stoi["<sos>"]
+
+            def beam_search():
+                max=30
+                beam_size=5
+                topk = [[[], .0, None]]  # [sequence, score, key_states]
+
+                memory = model.encoder(batch.src, batch.src_mask)
+                input_tokens = torch.ones(1, 1).fill_(start_symbol).type_as(batch.src.data)
+
+                for _ in range(max):
+                    candidates = []
+                    for i, (seq, score, key_states) in enumerate(topk):
+                        # get decoder output
+                        if seq:
+                            input_tokens = seq[-1].unsqueeze(0).unsqueeze(0)
+
+                        # get decoder output
+                        out = model.decoder(Variable(input_tokens), memory, batch.src_mask,
+                                            Variable(subsequent_mask(input_tokens.size(1)).type_as(batch.src.data)))
+                        states = out[:, -1]
+
+                        prob, logit = model.generator(states)
+                        prob, indices = torch.topk(prob, 2 * beam_size, dim=1, largest=True, sorted=True)
+
+                        # calculate scores
+                        for (idx, val) in zip(indices[0], prob[0]):
+                            candidate = [seq + [torch.tensor(idx).to(prob.device)], score + val.item(), i]
+                            candidates.append(candidate)
+
+                        # order all candidates by score, select k-best
+                        topk = sorted(candidates, key=lambda x: x[1], reverse=True)[:beam_size]
+
+                return [idx.item() for idx in topk[0][0]]
+
+            out = beam_search()
             print("Source:", end="\t")
-            for i in range(1, batch.src.size(0)):
-                sym = SRC.vocab.itos[batch.src.data[i, 0]]
+            for i in range(1, batch.src.size(1)):
+                sym = SRC.vocab.itos[batch.src.data[0, i]]
                 if sym == "<eos>": break
                 print(sym, end=" ")
             print()
-            print("Translation:", end="\t")
-            for i in range(1, out.size(1)):
-                sym = TGT.vocab.itos[out[0, i]]
-                if sym == "<eos>": break
-                print(sym, end=" ")
+            for i in range(0, 1):
+                print("Translation:", end="\t")
+                transl = list()
+                for j in range(0, len(out)):
+                    sym = TGT.vocab.itos[out[j]]
+                    if sym == "<eos>": break
+                    transl.append(sym)
+                print(' '.join(transl))
             print()
+            # print("Translation:", end="\t")
+            # for i in range(1, out.size(1)):
+            #     sym = TGT.vocab.itos[out[0, i]]
+            #     if sym == "<eos>": break
+            #     print(sym, end=" ")
+            # print()
             print("Target:", end="\t")
-            for i in range(1, batch.trg.size(0)):
-                sym = TGT.vocab.itos[batch.trg.data[i, 0]]
+            for i in range(1, batch.trg.size(1)):
+                sym = TGT.vocab.itos[batch.trg.data[0, i]]
                 if sym == "<eos>": break
                 print(sym, end=" ")
             print()
-            break
+
+            if k==10:
+                break
 
 
 def main():
