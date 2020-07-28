@@ -147,8 +147,7 @@ def decode(arg):
                             batch_size_fn=batch_size_fn, train=True)
     valid_iter = MyIterator(val, batch_size=BATCH_SIZE,
                             device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
-                            repeat=False, sort_key=lambda x: (len(x.src), len(x.trg)),
-                            batch_size_fn=batch_size_fn, train=True)
+                            repeat=False, train=False)
 
     model = TransformerEncoderDecoder(k=model_dim, heads=heads, dropout=arg.dropout, depth=depth,
                                       num_emb=len(SRC.vocab),
@@ -173,14 +172,17 @@ def decode(arg):
     #                       desc="Decoding",
     #                       total=len(data_loader))
 
+    translated = list()
+
     with torch.no_grad():
         for k, batch in enumerate(rebatch(pad_idx, b, device=device) for b in valid_iter):
             # out = greedy_decode(model, batch.src, batch.src_mask, start_symbol=TGT.vocab.stoi["<sos>"])
             start_symbol = TGT.vocab.stoi["<sos>"]
+            print(batch.src)
 
             def beam_search():
                 # This is forcing the model to match the source length
-                max=batch.ntokens
+                max=batch.ntokens + 10
 
                 beam_size=5
                 topk = [[[], .0, None]]  # [sequence, score, key_states]
@@ -217,36 +219,36 @@ def decode(arg):
                 return [idx.item() for idx in topk[0][0]]
 
             out = beam_search()
-            print("Source:", end="\t")
-            for i in range(1, batch.src.size(1)):
-                sym = SRC.vocab.itos[batch.src.data[0, i]]
-                if sym == "<eos>": break
-                print(sym, end=" ")
-            print()
+            # print("Source:", end="\t")
+            # for i in range(1, batch.src.size(1)):
+            #     sym = SRC.vocab.itos[batch.src.data[0, i]]
+            #     if sym == "<eos>": break
+            #     print(sym, end=" ")
+            # print()
             for i in range(0, 1):
-                print("Translation:", end="\t")
+                # print("Translation:", end="\t")
                 transl = list()
                 for j in range(0, len(out)):
                     sym = TGT.vocab.itos[out[j]]
                     if sym == "<eos>": break
                     transl.append(sym)
-                print(' '.join(transl))
-            print()
+                translated.append(' '.join(transl))
             # print("Translation:", end="\t")
             # for i in range(1, out.size(1)):
             #     sym = TGT.vocab.itos[out[0, i]]
             #     if sym == "<eos>": break
             #     print(sym, end=" ")
             # print()
-            print("Target:", end="\t")
-            for i in range(1, batch.trg.size(1)):
-                sym = TGT.vocab.itos[batch.trg.data[0, i]]
-                if sym == "<eos>": break
-                print(sym, end=" ")
-            print()
-
-            if k==10:
-                break
+            # print("Target:", end="\t")
+            # for i in range(1, batch.trg.size(1)):
+            #     sym = TGT.vocab.itos[batch.trg.data[0, i]]
+            #     if sym == "<eos>": break
+            #     print(sym, end=" ")
+            # print()
+            # if k == 10:
+            #     break
+    with open('valid.de-en.en', 'w') as outfile:
+        outfile.write('\n'.join(translated))
 
 
 def main():
