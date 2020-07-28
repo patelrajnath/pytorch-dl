@@ -174,12 +174,14 @@ def decode(arg):
     #                       total=len(data_loader))
 
     with torch.no_grad():
-        for k, batch in enumerate(rebatch(pad_idx, b, device=device) for b in train_iter):
-            # out = greedy_decode(model, src, src_mask, start_symbol=TGT.vocab.stoi["<sos>"])
+        for k, batch in enumerate(rebatch(pad_idx, b, device=device) for b in valid_iter):
+            # out = greedy_decode(model, batch.src, batch.src_mask, start_symbol=TGT.vocab.stoi["<sos>"])
             start_symbol = TGT.vocab.stoi["<sos>"]
 
             def beam_search():
-                max=30
+                # This is forcing the model to match the source length
+                max=batch.ntokens
+
                 beam_size=5
                 topk = [[[], .0, None]]  # [sequence, score, key_states]
 
@@ -191,15 +193,18 @@ def decode(arg):
                     for i, (seq, score, key_states) in enumerate(topk):
                         # get decoder output
                         if seq:
-                            input_tokens = seq[-1].unsqueeze(0).unsqueeze(0)
+                            # convert list of tensors to tensor list and add a new dimension for batch
+                            input_tokens = torch.stack(seq).unsqueeze(0)
 
                         # get decoder output
                         out = model.decoder(Variable(input_tokens), memory, batch.src_mask,
                                             Variable(subsequent_mask(input_tokens.size(1)).type_as(batch.src.data)))
                         states = out[:, -1]
 
-                        prob, logit = model.generator(states)
-                        prob, indices = torch.topk(prob, 2 * beam_size, dim=1, largest=True, sorted=True)
+                        lprobs, logit = model.generator(states)
+                        lprobs[:, pad_idx] = -math.inf  # never select pad
+                        # Restrict number of candidates to only twice that of beam size
+                        prob, indices = torch.topk(lprobs, 2 * beam_size, dim=1, largest=True, sorted=True)
 
                         # calculate scores
                         for (idx, val) in zip(indices[0], prob[0]):

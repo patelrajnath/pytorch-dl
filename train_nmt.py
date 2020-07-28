@@ -156,6 +156,7 @@ def decode(arg):
     depth = arg.depth
     max_size = arg.max_length
     input_file = arg.path
+    pad_idx = 1
     data_set = TranslationDataSet(input_file, arg.source, arg.target, vocab_src, vocab_tgt, max_size,
                                   add_sos_and_eos=True)
 
@@ -181,6 +182,7 @@ def decode(arg):
 
     with torch.no_grad():
         for l, batch in enumerate(rebatch_data(pad_idx=1, batch=b, device=device) for b in data_loader):
+            start_symbol = vocab_tgt.sos_index
             out = greedy_decode(model, batch.src, batch.src_mask, start_symbol=vocab_tgt.sos_index)
             # out = batch_decode(model, batch.src, batch.src_mask, batch.src_len,
             #                    pad_index=vocab_tgt.pad_index,
@@ -188,16 +190,19 @@ def decode(arg):
             #                    eos_index=vocab_tgt.eos_index)
 
             def beam_search():
-                max=120
-                beam_size=5
+                # This is forcing the model to match the source length
+                max = batch.ntokens
+
+                beam_size = 5
                 topk = [[[], .0, None]]  # [sequence, score, key_states]
 
                 memory = model.encoder(batch.src, batch.src_mask)
-                input_tokens = torch.ones(1, 1).fill_(vocab_tgt.sos_index).type_as(batch.src.data)
+                input_tokens = torch.ones(1, 1).fill_(start_symbol).type_as(batch.src.data)
 
                 for _ in range(max):
                     candidates = []
                     for i, (seq, score, key_states) in enumerate(topk):
+                        # get decoder output
                         if seq:
                             # convert list of tensors to tensor list and add a new dimension for batch
                             input_tokens = torch.stack(seq).unsqueeze(0)
@@ -207,12 +212,14 @@ def decode(arg):
                                             Variable(subsequent_mask(input_tokens.size(1)).type_as(batch.src.data)))
                         states = out[:, -1]
 
-                        prob, logit = model.generator(states)
-                        output = prob[0]
+                        lprobs, logit = model.generator(states)
+                        lprobs[:, pad_idx] = -math.inf  # never select pad
+                        # Restrict number of candidates to only twice that of beam size
+                        prob, indices = torch.topk(lprobs, 2 * beam_size, dim=1, largest=True, sorted=True)
 
                         # calculate scores
-                        for (idx, val) in enumerate(output):
-                            candidate = [seq + [torch.tensor(idx).to(output.device)], score + val.item(), i]
+                        for (idx, val) in zip(indices[0], prob[0]):
+                            candidate = [seq + [torch.tensor(idx).to(prob.device)], score + val.item(), i]
                             candidates.append(candidate)
 
                         # order all candidates by score, select k-best
