@@ -17,7 +17,7 @@ from torch import nn
 from torch.autograd import Variable
 
 from dataset.iwslt_data import get_data, MyIterator, batch_size_fn, rebatch, SimpleLossCompute, LabelSmoothing, \
-    subsequent_mask
+    subsequent_mask, save_dataset
 
 from dataset.iwslt_data import NoamOpt
 from models.decoding import greedy_decode, beam_search
@@ -34,8 +34,7 @@ def train(arg):
     except OSError:
         pass
 
-    train, val, test, SRC, TGT = get_data()
-
+    train, val, test, SRC, TGT = get_data(arg)
     pad_idx = TGT.vocab.stoi["<blank>"]
 
     BATCH_SIZE = arg.batch_size
@@ -131,7 +130,7 @@ def train(arg):
 
 def decode(arg):
     model_dir = arg.model
-    train, val, test, SRC, TGT = get_data()
+    train, val, test, SRC, TGT = get_data(arg)
     pad_idx = TGT.vocab.stoi["<blank>"]
     # for decoding keep the batch size one as beam-search is not yet implemented to handle the batch decoding
     BATCH_SIZE = 1
