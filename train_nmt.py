@@ -17,7 +17,7 @@ from torch.autograd import Variable
 from criterion.label_smoothed_cross_entropy import LabelSmoothedCrossEntropy
 from dataset.data_loader_translation import TranslationDataSet, BySequenceLengthSampler
 from dataset.iwslt_data import rebatch_data, subsequent_mask, LabelSmoothing, NoamOpt, SimpleLossCompute
-from models.decoding import batch_decode, greedy_decode, generate_beam, beam_decode
+from models.decoding import batch_decode, greedy_decode, generate_beam, beam_decode, beam_search
 from models.transformer import TransformerEncoderDecoder
 import torch.nn.functional as F
 import torch
@@ -183,52 +183,13 @@ def decode(arg):
     with torch.no_grad():
         for l, batch in enumerate(rebatch_data(pad_idx=1, batch=b, device=device) for b in data_loader):
             start_symbol = vocab_tgt.sos_index
-            out = greedy_decode(model, batch.src, batch.src_mask, start_symbol=vocab_tgt.sos_index)
+            # out = greedy_decode(model, batch.src, batch.src_mask, start_symbol=vocab_tgt.sos_index)
             # out = batch_decode(model, batch.src, batch.src_mask, batch.src_len,
             #                    pad_index=vocab_tgt.pad_index,
             #                    sos_index=vocab_tgt.sos_index,
             #                    eos_index=vocab_tgt.eos_index)
-
-            def beam_search():
-                # This is forcing the model to match the source length
-                max = batch.ntokens
-
-                beam_size = 5
-                topk = [[[], .0, None]]  # [sequence, score, key_states]
-
-                memory = model.encoder(batch.src, batch.src_mask)
-                input_tokens = torch.ones(1, 1).fill_(start_symbol).type_as(batch.src.data)
-
-                for _ in range(max):
-                    candidates = []
-                    for i, (seq, score, key_states) in enumerate(topk):
-                        # get decoder output
-                        if seq:
-                            # convert list of tensors to tensor list and add a new dimension for batch
-                            input_tokens = torch.stack(seq).unsqueeze(0)
-
-                        # get decoder output
-                        out = model.decoder(Variable(input_tokens), memory, batch.src_mask,
-                                            Variable(subsequent_mask(input_tokens.size(1)).type_as(batch.src.data)))
-                        states = out[:, -1]
-
-                        lprobs, logit = model.generator(states)
-                        lprobs[:, pad_idx] = -math.inf  # never select pad
-                        # Restrict number of candidates to only twice that of beam size
-                        prob, indices = torch.topk(lprobs, 2 * beam_size, dim=1, largest=True, sorted=True)
-
-                        # calculate scores
-                        for (idx, val) in zip(indices[0], prob[0]):
-                            candidate = [seq + [torch.tensor(idx).to(prob.device)], score + val.item(), i]
-                            candidates.append(candidate)
-
-                        # order all candidates by score, select k-best
-                        topk = sorted(candidates, key=lambda x: x[1], reverse=True)[:beam_size]
-
-                return [idx.item() for idx in topk[0][0]]
-
-            use_beam_search=True
-            out = beam_search()
+            out = beam_search(model, batch.src, batch.src_mask, start_symbol=start_symbol, pad_symbol=pad_idx,
+                              max=batch.ntokens + 10)
 
             for i in range(0, batch.src.size(0)):
                 print("Source:", end="\t")
@@ -246,27 +207,16 @@ def decode(arg):
                     trg.append(sym)
                 print(' '.join(trg).replace(' ', '').replace('▁', ' '))
 
-            if use_beam_search:
-                for i in range(0, 1):
-                    print("Translation:", end="\t")
-                    transl = list()
-                    for j in range(0, len(out)):
-                        sym = vocab_tgt.itos[out[j]]
-                        if sym == "<eos>": break
-                        transl.append(sym)
-                    print(' '.join(transl).replace(' ', '').replace('▁', ' '))
-                    print()
-            else:
-                for i in range(0, batch.trg.size(0)):
-                    print("Translation:", end="\t")
-                    transl = list()
-                    for j in range(0, batch.trg.size(1)):
-                        sym = vocab_tgt.itos[out[i, j]]
-                        if sym == "<eos>": break
-                        transl.append(sym)
-                    print(' '.join(transl).replace(' ', '').replace('▁', ' '))
-                    print()
-            break
+            for i in range(0, out.size(0)):
+                print("Translation:", end="\t")
+                transl = list()
+                start_idx = 0  # for greedy decoding the start index should be 1 that will exclude the <sos> symbol
+                for j in range(start_idx, out.size(1)):
+                    sym = vocab_tgt.itos[out[i, j]]
+                    if sym == "<eos>": break
+                    transl.append(sym)
+                print(' '.join(transl).replace(' ', '').replace('▁', ' '))
+                print()
 
 
 def main():
