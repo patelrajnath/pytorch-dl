@@ -5,6 +5,8 @@ pytorch-dl
 Created by raj at 22:21 
 Date: February 18, 2020	
 """
+import math
+
 import torch
 import torch.nn.functional as F
 from torch.autograd import Variable
@@ -24,6 +26,46 @@ def greedy_decode(model, src_tokens, src_mask, start_symbol, max=100):
         ys = torch.cat([ys,
                         torch.ones(1, 1).type_as(src_tokens.data).fill_(next_word)], dim=1)
     return ys
+
+
+def beam_search(model, src_tokens, src_mask, start_symbol, pad_symbol, max=100):
+    # This is forcing the model to match the source length
+    beam_size=5
+    topk = [[[], .0, None]]  # [sequence, score, key_states]
+
+    memory = model.encoder(src_tokens, src_mask)
+    input_tokens = torch.ones(1, 1).fill_(start_symbol).type_as(src_tokens.data)
+
+    for _ in range(max):
+        candidates = []
+        for i, (seq, score, key_states) in enumerate(topk):
+            # get decoder output
+            if seq:
+                # convert list of tensors to tensor list and add a new dimension for batch
+                input_tokens = torch.stack(seq).unsqueeze(0)
+
+            # get decoder output
+            out = model.decoder(Variable(input_tokens), memory, src_mask,
+                                Variable(subsequent_mask(input_tokens.size(1)).type_as(src_tokens.data)))
+            states = out[:, -1]
+
+            lprobs, logit = model.generator(states)
+            lprobs[:, pad_symbol] = -math.inf  # never select pad
+
+            # Restrict number of candidates to only twice that of beam size
+            prob, indices = torch.topk(lprobs, 2 * beam_size, dim=1, largest=True, sorted=True)
+
+            # calculate scores
+            for (idx, val) in zip(indices[0], prob[0]):
+                candidate = [seq + [torch.tensor(idx).to(prob.device)], score + val.item(), i]
+                candidates.append(candidate)
+
+            # order all candidates by score, select k-best
+            topk = sorted(candidates, key=lambda x: x[1], reverse=True)[:beam_size]
+
+    best_hypothesis = [idx.item() for idx in topk[0][0]]
+    best_hypothesis_tensor = torch.tensor(best_hypothesis).unsqueeze(0)
+    return best_hypothesis_tensor
 
 
 def batch_decode(model, src_tokens, src_mask, src_len, pad_index, sos_index, eos_index, max_len=60):

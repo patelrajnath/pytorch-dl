@@ -20,7 +20,7 @@ from dataset.iwslt_data import get_data, MyIterator, batch_size_fn, rebatch, Sim
     subsequent_mask
 
 from dataset.iwslt_data import NoamOpt
-from models.decoding import greedy_decode
+from models.decoding import greedy_decode, beam_search
 from models.transformer import TransformerEncoderDecoder
 from models.utils.model_utils import save_state, load_model_state, get_perplexity
 from optim.lr_warm_up import GradualWarmupScheduler
@@ -153,6 +153,7 @@ def decode(arg):
                                       num_emb=len(SRC.vocab),
                                       num_emb_target=len(TGT.vocab), max_len=max_len,
                                       mask_future_steps=True)
+
     # Initialize parameters with Glorot / fan_avg.
     for p in model.parameters():
         if p.dim() > 1:
@@ -177,69 +178,28 @@ def decode(arg):
 
     with torch.no_grad():
         for k, batch in enumerate(rebatch(pad_idx, b, device=device) for b in valid_iter):
-            out = greedy_decode(model, batch.src, batch.src_mask, start_symbol=TGT.vocab.stoi["<sos>"])
-            start_symbol = TGT.vocab.stoi["<sos>"]
             print('Processing: {0}'.format(k))
+            start_symbol = TGT.vocab.stoi["<sos>"]
+            # out = greedy_decode(model, batch.src, batch.src_mask, start_symbol=start_symbol)
+            out = beam_search(model, batch.src, batch.src_mask, start_symbol=start_symbol, pad_symbol=pad_idx,
+                              max=batch.ntokens + 10)
 
-            def beam_search():
-                # This is forcing the model to match the source length
-                max=batch.ntokens + 10
-
-                beam_size=5
-                topk = [[[], .0, None]]  # [sequence, score, key_states]
-
-                memory = model.encoder(batch.src, batch.src_mask)
-                input_tokens = torch.ones(1, 1).fill_(start_symbol).type_as(batch.src.data)
-
-                for _ in range(max):
-                    candidates = []
-                    for i, (seq, score, key_states) in enumerate(topk):
-                        # get decoder output
-                        if seq:
-                            # convert list of tensors to tensor list and add a new dimension for batch
-                            input_tokens = torch.stack(seq).unsqueeze(0)
-
-                        # get decoder output
-                        out = model.decoder(Variable(input_tokens), memory, batch.src_mask,
-                                            Variable(subsequent_mask(input_tokens.size(1)).type_as(batch.src.data)))
-                        states = out[:, -1]
-
-                        lprobs, logit = model.generator(states)
-                        lprobs[:, pad_idx] = -math.inf  # never select pad
-                        # Restrict number of candidates to only twice that of beam size
-                        prob, indices = torch.topk(lprobs, 2 * beam_size, dim=1, largest=True, sorted=True)
-
-                        # calculate scores
-                        for (idx, val) in zip(indices[0], prob[0]):
-                            candidate = [seq + [torch.tensor(idx).to(prob.device)], score + val.item(), i]
-                            candidates.append(candidate)
-
-                        # order all candidates by score, select k-best
-                        topk = sorted(candidates, key=lambda x: x[1], reverse=True)[:beam_size]
-
-                return [idx.item() for idx in topk[0][0]]
-
-            # out = beam_search()
             # print("Source:", end="\t")
             # for i in range(1, batch.src.size(1)):
             #     sym = SRC.vocab.itos[batch.src.data[0, i]]
             #     if sym == "<eos>": break
             #     print(sym, end=" ")
             # print()
-            # for i in range(0, 1):
-            #     transl = list()
-            #     for j in range(0, len(out)):
-            #         sym = TGT.vocab.itos[out[j]]
-            #         if sym == "<eos>": break
-            #         transl.append(sym)
-            #     translated.append(' '.join(transl))
             # print("Translation:", end="\t")
+
             transl = list()
-            for i in range(1, out.size(1)):
+            start_idx = 0 # for greedy decoding the start index should be 1 that will exclude the <sos> symbol
+            for i in range(start_idx, out.size(1)):
                 sym = TGT.vocab.itos[out[0, i]]
                 if sym == "<eos>": break
                 transl.append(sym)
             translated.append(' '.join(transl))
+
             # print()
             # print("Target:", end="\t")
             # ref = list()
@@ -248,9 +208,8 @@ def decode(arg):
             #     if sym == "<eos>": break
             #     ref.append(sym)
             # reference.append(" ".join(ref))
-            # if k == 10:
-            #     break
-    with open('valid-greedy-decode.de-en.en', 'w') as outfile:
+
+    with open('valid-beam-decode-test.de-en.en', 'w') as outfile:
         outfile.write('\n'.join(translated))
     # with open('valid-ref.de-en.en', 'w') as outfile:
     #     outfile.write('\n'.join(reference))
