@@ -173,12 +173,13 @@ def decode(arg):
     #                       total=len(data_loader))
 
     translated = list()
+    reference = list()
 
     with torch.no_grad():
         for k, batch in enumerate(rebatch(pad_idx, b, device=device) for b in valid_iter):
-            # out = greedy_decode(model, batch.src, batch.src_mask, start_symbol=TGT.vocab.stoi["<sos>"])
+            out = greedy_decode(model, batch.src, batch.src_mask, start_symbol=TGT.vocab.stoi["<sos>"])
             start_symbol = TGT.vocab.stoi["<sos>"]
-            print(batch.src)
+            print('Processing: {0}'.format(k))
 
             def beam_search():
                 # This is forcing the model to match the source length
@@ -218,37 +219,41 @@ def decode(arg):
 
                 return [idx.item() for idx in topk[0][0]]
 
-            out = beam_search()
+            # out = beam_search()
             # print("Source:", end="\t")
             # for i in range(1, batch.src.size(1)):
             #     sym = SRC.vocab.itos[batch.src.data[0, i]]
             #     if sym == "<eos>": break
             #     print(sym, end=" ")
             # print()
-            for i in range(0, 1):
-                # print("Translation:", end="\t")
-                transl = list()
-                for j in range(0, len(out)):
-                    sym = TGT.vocab.itos[out[j]]
-                    if sym == "<eos>": break
-                    transl.append(sym)
-                translated.append(' '.join(transl))
+            # for i in range(0, 1):
+            #     transl = list()
+            #     for j in range(0, len(out)):
+            #         sym = TGT.vocab.itos[out[j]]
+            #         if sym == "<eos>": break
+            #         transl.append(sym)
+            #     translated.append(' '.join(transl))
             # print("Translation:", end="\t")
-            # for i in range(1, out.size(1)):
-            #     sym = TGT.vocab.itos[out[0, i]]
-            #     if sym == "<eos>": break
-            #     print(sym, end=" ")
+            transl = list()
+            for i in range(1, out.size(1)):
+                sym = TGT.vocab.itos[out[0, i]]
+                if sym == "<eos>": break
+                transl.append(sym)
+            translated.append(' '.join(transl))
             # print()
             # print("Target:", end="\t")
+            # ref = list()
             # for i in range(1, batch.trg.size(1)):
             #     sym = TGT.vocab.itos[batch.trg.data[0, i]]
             #     if sym == "<eos>": break
-            #     print(sym, end=" ")
-            # print()
+            #     ref.append(sym)
+            # reference.append(" ".join(ref))
             # if k == 10:
             #     break
-    with open('valid.de-en.en', 'w') as outfile:
+    with open('valid-greedy-decode.de-en.en', 'w') as outfile:
         outfile.write('\n'.join(translated))
+    # with open('valid-ref.de-en.en', 'w') as outfile:
+    #     outfile.write('\n'.join(reference))
 
 
 def main():
