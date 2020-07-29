@@ -133,6 +133,7 @@ def decode(arg):
     model_dir = arg.model
     train, val, test, SRC, TGT = get_data()
     pad_idx = TGT.vocab.stoi["<blank>"]
+    # for decoding keep the batch size one as beam-search is not yet implemented to handle the batch decoding
     BATCH_SIZE = 1
     model_dim = arg.dim_model
     heads = arg.num_heads

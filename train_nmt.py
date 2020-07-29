@@ -150,6 +150,7 @@ def decode(arg):
     model_dir = arg.model
     vocab_src = WordVocab.load_vocab("{}/{}.pkl".format(model_dir, arg.source))
     vocab_tgt = WordVocab.load_vocab("{}/{}.pkl".format(model_dir, arg.target))
+    # for decoding keep the batch size one as beam-search is not yet implemented to handle the batch decoding
     batch_size = 1
     k = arg.dim_model
     h = arg.num_heads
