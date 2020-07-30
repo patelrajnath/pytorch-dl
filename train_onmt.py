@@ -9,12 +9,9 @@ Created by raj at 6:59 AM,  7/30/20
 from dataset.iwslt_data import rebatch, rebatch_onmt
 
 """Train models."""
-import os
-import signal
 import torch
 
 import onmt.opts as opts
-import onmt.utils.distributed
 
 from onmt.utils.misc import set_random_seed
 from onmt.utils.logging import init_logger, logger
