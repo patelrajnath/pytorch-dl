@@ -104,7 +104,7 @@ def train(opt):
                                                              betas=(0.9, 0.98), eps=1e-9))
     compute_loss = SimpleLossCompute(model.generator, criterion, optimizer)
 
-    cuda_condition = torch.cuda.is_available() and opt.gpu
+    cuda_condition = torch.cuda.is_available() and opt.gpu_ranks
     device = torch.device("cuda:0" if cuda_condition else "cpu")
 
     if cuda_condition:
