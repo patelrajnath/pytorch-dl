@@ -11,7 +11,7 @@ from math import inf
 from torch import nn
 
 from dataset.iwslt_data import rebatch, rebatch_onmt, SimpleLossCompute, NoamOpt, LabelSmoothing
-from models.decoding import beam_search
+from models.decoding import beam_search, batched_beam_search
 from models.transformer import TransformerEncoderDecoder
 from models.utils.model_utils import load_model_state, save_state, get_perplexity
 
@@ -33,9 +33,6 @@ def decode(opt):
     ArgumentParser.validate_model_opts(opt)
 
     set_random_seed(opt.seed, False)
-
-    # Current beam decoder is not yet implemented for batch decoding
-    opts.valid_batch_size = 1
 
     vocab = torch.load(opt.data + '.vocab.pt')
 
@@ -124,7 +121,7 @@ def decode(opt):
             start_idx = 0  # for greedy decoding the start index should be 1 that will exclude the <sos> symbol
             for i in range(start_idx, out.size(1)):
                 sym = trg_vocab.itos[out[0, i]]
-                if sym == "<eos>": break
+                if sym == "</s>": break
                 transl.append(sym)
             translated.append(' '.join(transl))
 
@@ -133,9 +130,12 @@ def decode(opt):
             ref = list()
             for i in range(1, batch.trg.size(1)):
                 sym =  trg_vocab.itos[batch.trg.data[0, i]]
-                if sym == "<eos>": break
+                if sym == "</s>": break
                 ref.append(sym)
             reference.append(" ".join(ref))
+
+            if k == 1:
+                break
 
         with open('valid-beam-decode-test.de-en.en', 'w') as outfile:
             outfile.write('\n'.join(translated))
