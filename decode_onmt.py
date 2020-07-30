@@ -107,8 +107,9 @@ def decode(opt):
             print('Processing: {0}'.format(k))
             start_symbol = trg_vocab.stoi["<sos>"]
             # out = greedy_decode(model, batch.src, batch.src_mask, start_symbol=start_symbol)
-            out = beam_search(model, batch.src, batch.src_mask, start_symbol=start_symbol, pad_symbol=pad_idx,
+            out = batched_beam_search(model, batch.src, batch.src_mask, start_symbol=start_symbol, pad_symbol=pad_idx,
                               max=batch.ntokens + 10)
+
             # print("Source:", end="\t")
             # for i in range(1, batch.src.size(1)):
             #     sym = SRC.vocab.itos[batch.src.data[0, i]]
@@ -134,10 +135,10 @@ def decode(opt):
                 ref.append(sym)
             reference.append(" ".join(ref))
 
-            if k == 1:
+            if k == 500:
                 break
 
-        with open('valid-beam-decode-test.de-en.en', 'w') as outfile:
+        with open('valid-beam-decode-test4.de-en.en', 'w') as outfile:
             outfile.write('\n'.join(translated))
         with open('valid-ref.de-en.en', 'w') as outfile:
             outfile.write('\n'.join(reference))

@@ -73,18 +73,19 @@ def batched_beam_search(model, src_tokens, src_mask, start_symbol, pad_symbol, m
     beam_size=5
     topk = [[[], .0, None]]  # [sequence, score, key_states]
     bs, tokens = src_tokens.size()
+
     memory = model.encoder(src_tokens, src_mask)
-    input_tokens = torch.ones(bs, 1).fill_(start_symbol).type_as(src_tokens.data)
+    input_tokens = torch.ones(1, 1).fill_(start_symbol).type_as(src_tokens.data)
 
     for _ in range(max):
         candidates = []
-        batch_seq = [seq for i, (seq, score, key_states) in enumerate(topk)]
-        print(batch_seq)
+        # Prepare all the hypothesises to be decoded in a single batch
+        batch_seq = [torch.tensor(seq).to(input_tokens.device) for i, (seq, score, key_states) in enumerate(topk)]
+
         # get decoder output
-        if len(batch_seq[0]) > 0:
+        if batch_seq[0].size(0) > 0:
             # convert list of tensors to tensor list and add a new dimension for batch
-            print('its true')
-            input_tokens = torch.stack(batch_seq).unsqueeze(0)
+            input_tokens = torch.stack(batch_seq)
 
         # get decoder output
         out = model.decoder(Variable(input_tokens), memory, src_mask,
@@ -95,15 +96,13 @@ def batched_beam_search(model, src_tokens, src_mask, start_symbol, pad_symbol, m
 
         # Restrict number of candidates to only twice that of beam size
         prob, indices = torch.topk(lprobs, 2 * beam_size, dim=1, largest=True, sorted=True)
-        print(prob.size())
 
         # calculate scores
         for i, (seq, score, key_states) in enumerate(topk):
             for (idx, val) in zip(indices[i], prob[i]):
                 candidate = [seq + [torch.tensor(idx).to(prob.device)], score + val.item(), i]
                 candidates.append(candidate)
-        print(len(candidates))
-        # exit()
+
         # order all candidates by score, select k-best
         topk = sorted(candidates, key=lambda x: x[1], reverse=True)[:beam_size]
 
