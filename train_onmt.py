@@ -117,7 +117,8 @@ def train(opts):
     # start steps defines if training was intrupted
     global_steps = start_steps
     iterations = 0
-    while global_steps <= opts.train_steps:
+    max_steps = opts.train_steps
+    while global_steps <= max_steps:
         start = time.time()
         total_tokens = 0
         total_loss = 0
@@ -134,8 +135,8 @@ def train(opts):
 
             if i % opts.report_every == 0 and i > 0:
                 elapsed = time.time() - start
-                print("Epoch %d Step: %d Loss: %f PPL: %f Tokens per Sec: %f" %
-                      (iterations, i, loss / batch.ntokens, get_perplexity(loss / batch.ntokens), tokens / elapsed))
+                print("Global Steps/Max Steps: %d/%d Step: %d Loss: %f PPL: %f Tokens per Sec: %f" %
+                      (global_steps, max_steps, i, loss / batch.ntokens, get_perplexity(loss / batch.ntokens), tokens / elapsed))
                 start = time.time()
                 tokens = 0
                 # checkpoint = "checkpoint.{}.".format(total_loss / total_tokens) + 'epoch' + str(epoch) + ".pt"
