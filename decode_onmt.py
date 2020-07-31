@@ -11,7 +11,7 @@ from math import inf
 from torch import nn
 
 from dataset.iwslt_data import rebatch, rebatch_onmt, SimpleLossCompute, NoamOpt, LabelSmoothing
-from models.decoding import beam_search, batched_beam_search
+from models.decoding import beam_search, batched_beam_search, greedy_decode
 from models.transformer import TransformerEncoderDecoder
 from models.utils.model_utils import load_model_state, save_state, get_perplexity
 
@@ -83,6 +83,7 @@ def decode(opt):
 
     start_steps = load_model_state(os.path.join(model_dir, 'checkpoints_best.pt'), model,
                                    data_parallel=False)
+    model.eval()
 
     criterion = LabelSmoothing(size=trg_vocab_size, padding_idx=pad_idx, smoothing=opt.label_smoothing)
     optimizer = NoamOpt(model_dim, 1, 2000, torch.optim.Adam(model.parameters(),
@@ -105,7 +106,8 @@ def decode(opt):
         reference = list()
         for k, batch in enumerate(rebatch_onmt(pad_idx, b, device=device) for b in valid_iter):
             print('Processing: {0}'.format(k))
-            start_symbol = trg_vocab.stoi["<sos>"]
+            start_symbol = trg_vocab.stoi["<s>"]
+
             # out = greedy_decode(model, batch.src, batch.src_mask, start_symbol=start_symbol)
             out = batched_beam_search(model, batch.src, batch.src_mask, start_symbol=start_symbol, pad_symbol=pad_idx,
                               max=batch.ntokens + 10)
@@ -135,12 +137,12 @@ def decode(opt):
                 ref.append(sym)
             reference.append(" ".join(ref))
 
-            if k == 500:
+            if k == 1:
                 break
 
-        with open('valid-beam-decode-test4.de-en.en', 'w') as outfile:
+        with open('valid-beam-decode-test5.de-en.en', 'w', encoding='utf8') as outfile:
             outfile.write('\n'.join(translated))
-        with open('valid-ref.de-en.en', 'w') as outfile:
+        with open('valid-ref.de-en.en', 'w', encoding='utf-8') as outfile:
             outfile.write('\n'.join(reference))
 
 
