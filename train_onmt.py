@@ -26,28 +26,28 @@ from onmt.inputters.inputter import build_dataset_iter, patch_fields, \
     load_old_vocab, old_style_vocab, build_dataset_iter_multiple
 
 
-def train(opts):
-    ArgumentParser.validate_train_opts(opts)
-    ArgumentParser.update_model_opts(opts)
-    ArgumentParser.validate_model_opts(opts)
+def train(opt):
+    ArgumentParser.validate_train_opts(opt)
+    ArgumentParser.update_model_opts(opt)
+    ArgumentParser.validate_model_opts(opt)
 
-    set_random_seed(opts.seed, False)
+    set_random_seed(opt.seed, False)
 
     # Load checkpoint if we resume from a previous training.
-    if opts.train_from:
-        logger.info('Loading checkpoint from %s' % opts.train_from)
-        checkpoint = torch.load(opts.train_from,
+    if opt.train_from:
+        logger.info('Loading checkpoint from %s' % opt.train_from)
+        checkpoint = torch.load(opt.train_from,
                                 map_location=lambda storage, loc: storage)
-        logger.info('Loading vocab from checkpoint at %s.' % opts.train_from)
+        logger.info('Loading vocab from checkpoint at %s.' % opt.train_from)
         vocab = checkpoint['vocab']
     else:
-        vocab = torch.load(opts.data + '.vocab.pt')
+        vocab = torch.load(opt.data + '.vocab.pt')
 
     # check for code where vocab is saved instead of fields
     # (in the future this will be done in a smarter way)
     if old_style_vocab(vocab):
         fields = load_old_vocab(
-            vocab, opts.model_type, dynamic_dict=opts.copy_attn)
+            vocab, opt.model_type, dynamic_dict=opt.copy_attn)
     else:
         fields = vocab
 
@@ -62,33 +62,33 @@ def train(opts):
     start_symbol = trg_vocab.stoi["<s>"]
 
     # patch for fields that may be missing in old data/model
-    patch_fields(opts, fields)
+    patch_fields(opt, fields)
 
-    if len(opts.data_ids) > 1:
+    if len(opt.data_ids) > 1:
         train_shards = []
-        for train_id in opts.data_ids:
+        for train_id in opt.data_ids:
             shard_base = "train_" + train_id
             train_shards.append(shard_base)
-        train_iter = build_dataset_iter_multiple(train_shards, fields, opts)
+        train_iter = build_dataset_iter_multiple(train_shards, fields, opt)
     else:
-        if opts.data_ids[0] is not None:
-            shard_base = "train_" + opts.data_ids[0]
+        if opt.data_ids[0] is not None:
+            shard_base = "train_" + opt.data_ids[0]
         else:
             shard_base = "train"
-        train_iter = build_dataset_iter(shard_base, fields, opts)
+        train_iter = build_dataset_iter(shard_base, fields, opt)
 
-    model_dir = opts.save_model
+    model_dir = opt.save_model
     try:
         os.makedirs(model_dir)
     except OSError:
         pass
 
-    model_dim = opts.state_dim
-    heads = opts.heads
-    depth = opts.enc_layers
+    model_dim = opt.state_dim
+    heads = opt.heads
+    depth = opt.enc_layers
     max_len = 100
 
-    model = TransformerEncoderDecoder(k=model_dim, heads=heads, dropout=opts.dropout[0],
+    model = TransformerEncoderDecoder(k=model_dim, heads=heads, dropout=opt.dropout[0],
                                       depth=depth,
                                       num_emb=src_vocab_size,
                                       num_emb_target=trg_vocab_size,
@@ -100,15 +100,15 @@ def train(opts):
         if p.dim() > 1:
             nn.init.xavier_uniform_(p)
 
-    start_steps = load_model_state(os.path.join(model_dir, 'checkpoints_best.pt'), opts, model,
+    start_steps = load_model_state(os.path.join(model_dir, 'checkpoints_best.pt'), opt, model,
                                    data_parallel=False)
-    criterion = LabelSmoothing(size=trg_vocab_size, padding_idx=pad_idx, smoothing=opts.label_smoothing)
+    criterion = LabelSmoothing(size=trg_vocab_size, padding_idx=pad_idx, smoothing=opt.label_smoothing)
     optimizer = NoamOpt(model_dim, 1, 2000, torch.optim.Adam(model.parameters(),
-                                                             lr=opts.learning_rate,
+                                                             lr=opt.learning_rate,
                                                              betas=(0.9, 0.98), eps=1e-9))
     compute_loss = SimpleLossCompute(model.generator, criterion, optimizer)
 
-    cuda_condition = torch.cuda.is_available() and opts.gpu_ranks
+    cuda_condition = torch.cuda.is_available() and opt.gpu_ranks
     device = torch.device("cuda:0" if cuda_condition else "cpu")
 
     if cuda_condition:
@@ -122,7 +122,7 @@ def train(opts):
     # start steps defines if training was intrupted
     global_steps = start_steps
     iterations = 0
-    max_steps = opts.train_steps
+    max_steps = opt.train_steps
     while global_steps <= max_steps:
         start = time.time()
         total_tokens = 0
@@ -138,7 +138,7 @@ def train(opts):
             total_tokens += batch.ntokens
             tokens += batch.ntokens
 
-            if i % opts.report_every == 0 and i > 0:
+            if i % opt.report_every == 0 and i > 0:
                 elapsed = time.time() - start
                 print("Global Steps/Max Steps: %d/%d Step: %d Loss: %f PPL: %f Tokens per Sec: %f" %
                       (global_steps, max_steps, i, loss / batch.ntokens, get_perplexity(loss / batch.ntokens), tokens / elapsed))
@@ -148,10 +148,10 @@ def train(opts):
                 # save_state(os.path.join(model_dir, checkpoint), model, criterion, optimizer, epoch)
         loss_average = total_loss / total_tokens
         checkpoint = "checkpoint.{}.".format(loss_average) + 'epoch' + str(iterations) + ".pt"
-        save_state(os.path.join(model_dir, checkpoint), model, criterion, optimizer, global_steps, fields, opts)
+        save_state(os.path.join(model_dir, checkpoint), model, criterion, optimizer, global_steps, fields, opt)
 
         if previous_best > loss_average:
-            save_state(os.path.join(model_dir, 'checkpoints_best.pt'), model, criterion, optimizer, global_steps, fields, opts)
+            save_state(os.path.join(model_dir, 'checkpoints_best.pt'), model, criterion, optimizer, global_steps, fields, opt)
             previous_best = loss_average
 
 
