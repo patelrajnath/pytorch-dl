@@ -95,8 +95,10 @@ def train(opts):
         if p.dim() > 1:
             nn.init.xavier_uniform_(p)
 
-    start_steps = load_model_state(os.path.join(model_dir, 'checkpoints_best.pt'), model,
+    start_steps = load_model_state(os.path.join(model_dir, 'checkpoints_best.pt'), opts, model,
                                    data_parallel=False)
+    
+    print(start_steps)
 
     criterion = LabelSmoothing(size=trg_vocab_size, padding_idx=pad_idx, smoothing=opts.label_smoothing)
     optimizer = NoamOpt(model_dim, 1, 2000, torch.optim.Adam(model.parameters(),
