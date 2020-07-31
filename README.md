@@ -12,28 +12,14 @@ It also contains BERT training-
 - [Sentencepiece](https://github.com/google/sentencepiece)
 - numpy
 
-## Quick Start
-##### INSTALL Dependencies
+# Quick Start
+### INSTALL Dependencies
 ```bash
 pip3 install -r requirements.txt
 python -m spacy download en
 ```
-##### IMDB classification:
-```bash
-python3 classify.py
-```
 
-##### Bert training:
-```bash
-python3 pretrain_bert.py
-```
-
-##### mBART training:
-```bash
-python3 pretrain_mbart.py
-```
-
-#### Train NMT model
+### Train NMT model
 
 ##### Prepare data
 ```bash
@@ -57,12 +43,27 @@ bash decode.sh
 bash translate_file.sh
 ```
 
-## Author
+### IMDB classification:
+```bash
+python3 classify.py
+```
+
+### Bert training:
+```bash
+python3 pretrain_bert.py
+```
+
+### mBART training:
+```bash
+python3 pretrain_mbart.py
+```
+
+### Author
 Raj Nath Patel (patelrajnath@gmail.com)
 
 Linkedin: https://ie.linkedin.com/in/raj-nath-patel-2262b024
 
-## Version
+### Version
 0.1
 
 ### LICENSE
