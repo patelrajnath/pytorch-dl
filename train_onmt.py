@@ -51,8 +51,15 @@ def train(opts):
     else:
         fields = vocab
 
-    src_vocab_size = len(fields['src'].base_field.vocab)
-    trg_vocab_size = len(fields['tgt'].base_field.vocab)
+    src_vocab = fields['src'].base_field.vocab
+    trg_vocab = fields['tgt'].base_field.vocab
+
+    src_vocab_size = len(src_vocab)
+    trg_vocab_size = len(trg_vocab)
+
+    pad_idx = src_vocab.stoi["<blank>"]
+    unk_idx = src_vocab.stoi["<unk>"]
+    start_symbol = trg_vocab.stoi["<s>"]
 
     # patch for fields that may be missing in old data/model
     patch_fields(opts, fields)
@@ -69,8 +76,6 @@ def train(opts):
         else:
             shard_base = "train"
         train_iter = build_dataset_iter(shard_base, fields, opts)
-
-    pad_idx = 1
 
     model_dir = opts.save_model
     try:

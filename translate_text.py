@@ -9,23 +9,27 @@ import time
 
 import torch
 
-from dataset.iwslt_data import rebatch_onmt, rebatch_source_only
-from models.decoding import batched_beam_search, greedy_decode
-from models.transformer import TransformerEncoderDecoder
+from dataset.iwslt_data import rebatch_source_only
+from models.decoding import batched_beam_search
 from models.utils.model_utils import load_model_state
 from onmt import opts, inputters
-from onmt.inputters import old_style_vocab, load_old_vocab
-from onmt.inputters.inputter import patch_fields
 from onmt.utils import set_random_seed
 from onmt.utils.parse import ArgumentParser
 
 
-def translate_file(opt):
-    ArgumentParser.validate_train_opts(opt)
-    ArgumentParser.update_model_opts(opt)
-    ArgumentParser.validate_model_opts(opt)
-
+def translate(opt):
     set_random_seed(opt.seed, False)
+
+    start_steps, model, fields = load_model_state(os.path.join(opt.models[0], 'checkpoints_best.pt'), opts,
+                                                  data_parallel=False)
+    model.eval()
+
+    src_vocab = fields['src'].base_field.vocab
+    trg_vocab = fields['tgt'].base_field.vocab
+
+    pad_idx = src_vocab.stoi["<blank>"]
+    unk_idx = src_vocab.stoi["<unk>"]
+    start_symbol = trg_vocab.stoi["<s>"]
 
     with open(opt.src) as input:
         src = input.readlines()
@@ -35,19 +39,6 @@ def translate_file(opt):
 
     _readers, _data, _dir = inputters.Dataset.config(
         [('src', src_data)])
-
-    vocab = torch.load(opt.data + '.vocab.pt')
-
-    # check for code where vocab is saved instead of fields
-    # (in the future this will be done in a smarter way)
-    if old_style_vocab(vocab):
-        fields = load_old_vocab(
-            vocab, opt.model_type, dynamic_dict=opt.copy_attn)
-    else:
-        fields = vocab
-
-    # patch for fields that may be missing in old data/model
-    patch_fields(opt, fields)
 
     # corpus_id field is useless here
     if fields.get("corpus_id", None) is not None:
@@ -64,35 +55,7 @@ def translate_file(opt):
         shuffle=False
     )
 
-    src_vocab = fields['src'].base_field.vocab
-    trg_vocab = fields['tgt'].base_field.vocab
-
-    src_vocab_size = len(src_vocab)
-    trg_vocab_size = len(trg_vocab)
-    pad_idx = 1
-    model_dir = opt.save_model
-    try:
-        os.makedirs(model_dir)
-    except OSError:
-        pass
-
-    model_dim = opt.state_dim
-    heads = opt.heads
-    depth = opt.enc_layers
-    max_len = 100
-
-    model = TransformerEncoderDecoder(k=model_dim, heads=heads, dropout=opt.dropout[0],
-                                      depth=depth,
-                                      num_emb=src_vocab_size,
-                                      num_emb_target=trg_vocab_size,
-                                      max_len=max_len,
-                                      mask_future_steps=True)
-
-    start_steps = load_model_state(os.path.join(model_dir, 'checkpoints_best.pt'), model,
-                                   data_parallel=False)
-    model.eval()
-
-    cuda_condition = torch.cuda.is_available() and opt.gpu_ranks
+    cuda_condition = torch.cuda.is_available() and opt.gpu
     device = torch.device("cuda:0" if cuda_condition else "cpu")
 
     if cuda_condition:
@@ -104,8 +67,6 @@ def translate_file(opt):
         start = time.time()
         for k, batch in enumerate(rebatch_source_only(pad_idx, b, device=device) for b in data_iter):
             print('Processing: {0}'.format(k))
-            start_symbol = trg_vocab.stoi["<s>"]
-
             # out = greedy_decode(model, batch.src, batch.src_mask, start_symbol=start_symbol)
             # out = beam_search(model, batch.src, batch.src_mask,
             #                           start_symbol=start_symbol, pad_symbol=pad_idx,
@@ -153,18 +114,18 @@ def translate_file(opt):
 
 
 def _get_parser():
-    parser = ArgumentParser(description='train.py')
+    parser = ArgumentParser(description='translate.py')
 
     opts.config_opts(parser)
-    opts.model_opts(parser)
-    opts.train_opts(parser)
+    opts.translate_opts(parser)
     return parser
 
 
 def main():
     parser = _get_parser()
+
     opt = parser.parse_args()
-    translate_file(opt)
+    translate(opt)
 
 
 if __name__ == "__main__":

@@ -32,9 +32,8 @@ def decode(opt):
 
     set_random_seed(opt.seed, False)
 
+    # For decoding we dont have yet batch beam search
     opt.valid_batch_size = 1
-
-    pad_idx = 1
 
     model_dir = opt.save_model
     try:
@@ -48,6 +47,10 @@ def decode(opt):
     
     src_vocab = fields['src'].base_field.vocab
     trg_vocab = fields['tgt'].base_field.vocab
+
+    pad_idx = src_vocab.stoi["<blank>"]
+    unk_idx = src_vocab.stoi["<unk>"]
+    start_symbol = trg_vocab.stoi["<s>"]
 
     valid_iter = build_dataset_iter(
         "valid", fields, opt, is_train=False)
