@@ -9,6 +9,7 @@ import logging
 import math
 import os
 import traceback
+from copy import deepcopy
 
 import torch
 from torch.nn.utils.rnn import pack_sequence, pad_sequence
@@ -72,12 +73,32 @@ def torch_persistent_save(*args, **kwargs):
                 logging.error(traceback.format_exc())
 
 
-def save_state(filename, model, criterion, optimizer,
-               num_updates, optim_history=None, extra_state=None):
+def save_state(filename, model, criterion, optimizer, num_updates,
+               fields=None, opts=None, optim_history=None, extra_state=None):
     if optim_history is None:
         optim_history = []
     if extra_state is None:
         extra_state = {}
+
+    if fields:
+        vocab = deepcopy(fields)
+        for side in ["src", "tgt"]:
+            keys_to_pop = []
+            if hasattr(vocab[side], "fields"):
+                unk_token = vocab[side].fields[0][1].vocab.itos[0]
+                for key, value in vocab[side].fields[0][1].vocab.stoi.items():
+                    if value == 0 and key != unk_token:
+                        keys_to_pop.append(key)
+                for key in keys_to_pop:
+                    vocab[side].fields[0][1].vocab.stoi.pop(key, None)
+    else:
+        vocab = {}
+
+    if opts:
+        opts = opts
+    else:
+        opts = {}
+
     print("Saving checkpoint at-", filename)
     state_dict = {
         'model': model.state_dict(),
@@ -89,11 +110,13 @@ def save_state(filename, model, criterion, optimizer,
             }
         ],
         'extra_state': extra_state,
+        'vocab': vocab,
+        'model_opts': opts,
     }
     torch_persistent_save(state_dict, filename)
 
 
-def load_model_state(filename, model, data_parallel=True):
+def load_model_state(filename, model=None, data_parallel=True):
     if not os.path.exists(filename):
         print("Starting training from scratch.")
         return 0

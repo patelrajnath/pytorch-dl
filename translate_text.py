@@ -2,37 +2,39 @@
 # -*- coding: utf-8 -*-
 """
 pytorch-dl
-Created by raj at 6:59 AM,  7/30/20
+Created by raj at 7:48 AM,  7/31/20
 """
 import os
 import time
-from math import inf
 
-from torch import nn
-
-from dataset.iwslt_data import rebatch, rebatch_onmt, SimpleLossCompute, NoamOpt, LabelSmoothing
-from models.decoding import beam_search, batched_beam_search, greedy_decode
-from models.transformer import TransformerEncoderDecoder
-from models.utils.model_utils import load_model_state, save_state, get_perplexity
-
-"""Train models."""
 import torch
 
-import onmt.opts as opts
-
-from onmt.utils.misc import set_random_seed
-from onmt.utils.logging import init_logger, logger
+from dataset.iwslt_data import rebatch_onmt, rebatch_source_only
+from models.decoding import batched_beam_search, greedy_decode
+from models.transformer import TransformerEncoderDecoder
+from models.utils.model_utils import load_model_state
+from onmt import opts, inputters
+from onmt.inputters import old_style_vocab, load_old_vocab
+from onmt.inputters.inputter import patch_fields
+from onmt.utils import set_random_seed
 from onmt.utils.parse import ArgumentParser
-from onmt.inputters.inputter import build_dataset_iter, patch_fields, \
-    load_old_vocab, old_style_vocab, build_dataset_iter_multiple
 
 
-def decode(opt):
+def translate_file(opt):
     ArgumentParser.validate_train_opts(opt)
     ArgumentParser.update_model_opts(opt)
     ArgumentParser.validate_model_opts(opt)
 
     set_random_seed(opt.seed, False)
+
+    with open(opt.src) as input:
+        src = input.readlines()
+
+    src_reader = inputters.str2reader['text'].from_opt(opt)
+    src_data = {"reader": src_reader, "data": src, "dir": ''}
+
+    _readers, _data, _dir = inputters.Dataset.config(
+        [('src', src_data)])
 
     vocab = torch.load(opt.data + '.vocab.pt')
 
@@ -47,17 +49,27 @@ def decode(opt):
     # patch for fields that may be missing in old data/model
     patch_fields(opt, fields)
 
+    # corpus_id field is useless here
+    if fields.get("corpus_id", None) is not None:
+        fields.pop('corpus_id')
+
+    data = inputters.Dataset(fields, readers=_readers, dirs=_dir, data=_data, sort_key=inputters.str2sortkey['text'])
+
+    data_iter = inputters.OrderedIterator(
+        dataset=data,
+        batch_size=1,
+        train=False,
+        sort=False,
+        sort_within_batch=True,
+        shuffle=False
+    )
+
     src_vocab = fields['src'].base_field.vocab
     trg_vocab = fields['tgt'].base_field.vocab
 
     src_vocab_size = len(src_vocab)
     trg_vocab_size = len(trg_vocab)
-
-    valid_iter = build_dataset_iter(
-        "valid", fields, opt, is_train=False)
-
     pad_idx = 1
-
     model_dir = opt.save_model
     try:
         os.makedirs(model_dir)
@@ -76,20 +88,9 @@ def decode(opt):
                                       max_len=max_len,
                                       mask_future_steps=True)
 
-    # Initialize parameters with Glorot / fan_avg.
-    for p in model.parameters():
-        if p.dim() > 1:
-            nn.init.xavier_uniform_(p)
-
     start_steps = load_model_state(os.path.join(model_dir, 'checkpoints_best.pt'), model,
                                    data_parallel=False)
     model.eval()
-
-    criterion = LabelSmoothing(size=trg_vocab_size, padding_idx=pad_idx, smoothing=opt.label_smoothing)
-    optimizer = NoamOpt(model_dim, 1, 2000, torch.optim.Adam(model.parameters(),
-                                                             lr=opt.learning_rate,
-                                                             betas=(0.9, 0.98), eps=1e-9))
-    compute_loss = SimpleLossCompute(model.generator, criterion, optimizer)
 
     cuda_condition = torch.cuda.is_available() and opt.gpu_ranks
     device = torch.device("cuda:0" if cuda_condition else "cpu")
@@ -101,7 +102,7 @@ def decode(opt):
         translated = list()
         reference = list()
         start = time.time()
-        for k, batch in enumerate(rebatch_onmt(pad_idx, b, device=device) for b in valid_iter):
+        for k, batch in enumerate(rebatch_source_only(pad_idx, b, device=device) for b in data_iter):
             print('Processing: {0}'.format(k))
             start_symbol = trg_vocab.stoi["<s>"]
 
@@ -127,25 +128,28 @@ def decode(opt):
                 sym = trg_vocab.itos[out[0, i]]
                 if sym == "</s>": break
                 transl.append(sym)
-            translated.append(' '.join(transl))
+            text_transl = " ".join(transl).replace("@@ ", '')
+            translated.append(text_transl)
+
+            print(text_transl)
 
             # print()
             # print("Target:", end="\t")
-            ref = list()
-            for i in range(1, batch.trg.size(1)):
-                sym =  trg_vocab.itos[batch.trg.data[0, i]]
-                if sym == "</s>": break
-                ref.append(sym)
-            reference.append(" ".join(ref))
+            # ref = list()
+            # for i in range(1, batch.trg.size(1)):
+            #     sym = trg_vocab.itos[batch.trg.data[0, i]]
+            #     if sym == "</s>": break
+            #     ref.append(sym)
+            # reference.append(" ".join(ref))
 
-#             if k == 1:
-#                 break
+            # if k == 1:
+            #     break
 
-        with open('valid-beam-decode-test.de-en.en', 'w', encoding='utf8') as outfile:
-            outfile.write('\n'.join(translated))
-        with open('valid-ref.de-en.en', 'w', encoding='utf-8') as outfile:
-            outfile.write('\n'.join(reference))
-        print('Time elapsed:{}'.format(time.time()- start))
+    with open('test-beam-decode.de-en.en', 'w', encoding='utf8') as outfile:
+        outfile.write('\n'.join(translated))
+    # with open('valid-ref.de-en.en', 'w', encoding='utf-8') as outfile:
+    #     outfile.write('\n'.join(reference))
+    print('Time elapsed:{}'.format(time.time() - start))
 
 
 def _get_parser():
@@ -160,7 +164,7 @@ def _get_parser():
 def main():
     parser = _get_parser()
     opt = parser.parse_args()
-    decode(opt)
+    translate_file(opt)
 
 
 if __name__ == "__main__":

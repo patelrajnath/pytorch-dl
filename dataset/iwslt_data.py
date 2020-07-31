@@ -139,6 +139,8 @@ class Batch:
             self.trg_mask = \
                 self.make_std_mask(self.trg, pad).to(device)
             self.ntokens = (self.trg_y != pad).data.sum()
+        else:
+            self.ntokens = (src != pad).data.sum()
 
     @staticmethod
     def make_std_mask(tgt, pad):
@@ -186,6 +188,12 @@ def rebatch_onmt(pad_idx, batch, device='cpu'):
     "Fix order in torchtext to match ours"
     src, trg = batch.src[0].squeeze(-1).transpose(0, 1), batch.tgt.squeeze(-1).transpose(0, 1)
     return Batch(src, trg, pad_idx, device=device)
+
+
+def rebatch_source_only(pad_idx, batch, device='cpu'):
+    "Fix order in torchtext to match ours"
+    src = batch.src[0].squeeze(-1).transpose(0, 1)
+    return Batch(src, pad=pad_idx, device=device)
 
 
 def rebatch_data(pad_idx, batch, device='cpu'):
