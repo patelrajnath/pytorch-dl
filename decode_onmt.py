@@ -21,10 +21,8 @@ import torch
 import onmt.opts as opts
 
 from onmt.utils.misc import set_random_seed
-from onmt.utils.logging import init_logger, logger
 from onmt.utils.parse import ArgumentParser
-from onmt.inputters.inputter import build_dataset_iter, patch_fields, \
-    load_old_vocab, old_style_vocab, build_dataset_iter_multiple
+from onmt.inputters.inputter import build_dataset_iter
 
 
 def decode(opt):
@@ -33,6 +31,8 @@ def decode(opt):
     ArgumentParser.validate_model_opts(opt)
 
     set_random_seed(opt.seed, False)
+
+    opt.valid_batch_size = 1
 
     pad_idx = 1
 
