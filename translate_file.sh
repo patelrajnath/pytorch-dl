@@ -1,5 +1,5 @@
 #!/bin/bash
 
-python translate_text.py \
+python translate.py \
 	--model demo-model \
-	--src examples/iwslt14.tokenized.de-en/test.de
+	--src examples/translation/iwslt14.tokenized.de-en/test.de
