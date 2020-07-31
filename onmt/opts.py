@@ -370,10 +370,6 @@ def train_opts(parser):
 
     group.add('--data_ids', '-data_ids', nargs='+', default=[None],
               help="In case there are several corpora.")
-
-    group.add('--src', '-src', default="",
-              help="Path to the input source file")
-
     group.add('--data_weights', '-data_weights', type=int, nargs='+',
               default=[1], help="""Weights of different corpora,
               should follow the same order as in -data_ids.""")
