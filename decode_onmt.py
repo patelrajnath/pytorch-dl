@@ -45,6 +45,9 @@ def decode(opt):
     start_steps, model, fields = load_model_state(os.path.join(model_dir, 'checkpoints_best.pt'), opts,
                                                   data_parallel=False)
     model.eval()
+    
+    src_vocab = fields['src'].base_field.vocab
+    trg_vocab = fields['tgt'].base_field.vocab
 
     valid_iter = build_dataset_iter(
         "valid", fields, opt, is_train=False)

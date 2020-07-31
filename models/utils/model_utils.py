@@ -149,7 +149,7 @@ def load_model_state(filename, opts, model=None, data_parallel=True):
         return checkpoint['num_updates']
 
     else:
-        model_opt = ArgumentParser.ckpt_model_opts(checkpoint['opt'])
+        model_opt = ArgumentParser.ckpt_model_opts(checkpoint['model_opts'])
         vocab = checkpoint['vocab']
         if inputters.old_style_vocab(vocab):
             fields = inputters.load_old_vocab(
