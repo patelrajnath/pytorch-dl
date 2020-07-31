@@ -15,6 +15,11 @@ import torch
 from torch.nn.utils.rnn import pack_sequence, pad_sequence
 from torch.serialization import default_restore_location
 
+from models.transformer import TransformerEncoderDecoder
+from onmt import inputters
+from onmt.inputters.inputter import patch_fields
+from onmt.utils.parse import ArgumentParser
+
 
 def mask_(matrices, maskval=0.0, mask_diagonal=True):
     """
@@ -116,30 +121,80 @@ def save_state(filename, model, criterion, optimizer, num_updates,
     torch_persistent_save(state_dict, filename)
 
 
-def load_model_state(filename, model=None, data_parallel=True):
+def load_model_state(filename, opts, model=None, data_parallel=True):
     if not os.path.exists(filename):
         print("Starting training from scratch.")
         return 0
 
     print("Loading model from checkpoints", filename)
-    state = torch.load(filename, map_location=lambda s, l: default_restore_location(s, 'cpu'))
+    checkpoint = torch.load(filename, map_location=lambda s, l: default_restore_location(s, 'cpu'))
 
-    from collections import OrderedDict
-    new_state_dict = OrderedDict()
-    # create new OrderedDict that does not contain `module.`
-    if data_parallel:
-        for k, v in state['model'].items():
-            name = k[7:]  # remove `module.`
-            new_state_dict[name] = v
+    if model:
+        from collections import OrderedDict
+        new_state_dict = OrderedDict()
+        # create new OrderedDict that does not contain `module.`
+        if data_parallel:
+            for k, v in checkpoint['model'].items():
+                name = k[7:]  # remove `module.`
+                new_state_dict[name] = v
+        else:
+            new_state_dict = checkpoint['model']
+
+        # load model parameters
+        try:
+            model.load_state_dict(new_state_dict)
+        except Exception:
+            raise Exception('Cannot load model parameters from checkpoint, '
+                            'please ensure that the architectures match')
+        return checkpoint['num_updates']
+
     else:
-        new_state_dict = state['model']
-    # load model parameters
-    try:
-        model.load_state_dict(new_state_dict)
-    except Exception:
-        raise Exception('Cannot load model parameters from checkpoint, '
-                        'please ensure that the architectures match')
-    return state['num_updates']
+        model_opt = ArgumentParser.ckpt_model_opts(checkpoint['model_opts'])
+        vocab = checkpoint['vocab']
+        if inputters.old_style_vocab(vocab):
+            fields = inputters.load_old_vocab(
+                vocab, opts.data_type, dynamic_dict=model_opt.copy_attn
+            )
+        else:
+            fields = vocab
+
+        # patch for fields that may be missing in old data/model
+        patch_fields(model_opt, fields)
+
+        src_vocab = fields['src'].base_field.vocab
+        trg_vocab = fields['tgt'].base_field.vocab
+
+        src_vocab_size = len(src_vocab)
+        trg_vocab_size = len(trg_vocab)
+
+        model_dim = model_opt.state_dim
+        heads = model_opt.heads
+        depth = model_opt.enc_layers
+        max_len = 100
+
+        model = TransformerEncoderDecoder(k=model_dim, heads=heads, dropout=model_opt.dropout[0],
+                                          depth=depth,
+                                          num_emb=src_vocab_size,
+                                          num_emb_target=trg_vocab_size,
+                                          max_len=max_len,
+                                          mask_future_steps=True)
+        from collections import OrderedDict
+        new_state_dict = OrderedDict()
+        # create new OrderedDict that does not contain `module.`
+        if data_parallel:
+            for k, v in checkpoint['model'].items():
+                name = k[7:]  # remove `module.`
+                new_state_dict[name] = v
+        else:
+            new_state_dict = checkpoint['model']
+
+        # load model parameters
+        try:
+            model.load_state_dict(new_state_dict)
+        except Exception:
+            raise Exception('Cannot load model parameters from checkpoint, '
+                            'please ensure that the architectures match')
+        return checkpoint['num_updates'], model, fields
 
 
 def my_collate(batch):

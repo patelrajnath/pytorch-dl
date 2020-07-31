@@ -26,28 +26,28 @@ from onmt.inputters.inputter import build_dataset_iter, patch_fields, \
     load_old_vocab, old_style_vocab, build_dataset_iter_multiple
 
 
-def train(opt):
-    ArgumentParser.validate_train_opts(opt)
-    ArgumentParser.update_model_opts(opt)
-    ArgumentParser.validate_model_opts(opt)
+def train(opts):
+    ArgumentParser.validate_train_opts(opts)
+    ArgumentParser.update_model_opts(opts)
+    ArgumentParser.validate_model_opts(opts)
 
-    set_random_seed(opt.seed, False)
+    set_random_seed(opts.seed, False)
 
     # Load checkpoint if we resume from a previous training.
-    if opt.train_from:
-        logger.info('Loading checkpoint from %s' % opt.train_from)
-        checkpoint = torch.load(opt.train_from,
+    if opts.train_from:
+        logger.info('Loading checkpoint from %s' % opts.train_from)
+        checkpoint = torch.load(opts.train_from,
                                 map_location=lambda storage, loc: storage)
-        logger.info('Loading vocab from checkpoint at %s.' % opt.train_from)
+        logger.info('Loading vocab from checkpoint at %s.' % opts.train_from)
         vocab = checkpoint['vocab']
     else:
-        vocab = torch.load(opt.data + '.vocab.pt')
+        vocab = torch.load(opts.data + '.vocab.pt')
 
     # check for code where vocab is saved instead of fields
     # (in the future this will be done in a smarter way)
     if old_style_vocab(vocab):
         fields = load_old_vocab(
-            vocab, opt.model_type, dynamic_dict=opt.copy_attn)
+            vocab, opts.model_type, dynamic_dict=opts.copy_attn)
     else:
         fields = vocab
 
@@ -55,35 +55,35 @@ def train(opt):
     trg_vocab_size = len(fields['tgt'].base_field.vocab)
 
     # patch for fields that may be missing in old data/model
-    patch_fields(opt, fields)
+    patch_fields(opts, fields)
 
-    if len(opt.data_ids) > 1:
+    if len(opts.data_ids) > 1:
         train_shards = []
-        for train_id in opt.data_ids:
+        for train_id in opts.data_ids:
             shard_base = "train_" + train_id
             train_shards.append(shard_base)
-        train_iter = build_dataset_iter_multiple(train_shards, fields, opt)
+        train_iter = build_dataset_iter_multiple(train_shards, fields, opts)
     else:
-        if opt.data_ids[0] is not None:
-            shard_base = "train_" + opt.data_ids[0]
+        if opts.data_ids[0] is not None:
+            shard_base = "train_" + opts.data_ids[0]
         else:
             shard_base = "train"
-        train_iter = build_dataset_iter(shard_base, fields, opt)
+        train_iter = build_dataset_iter(shard_base, fields, opts)
 
     pad_idx = 1
 
-    model_dir = opt.save_model
+    model_dir = opts.save_model
     try:
         os.makedirs(model_dir)
     except OSError:
         pass
 
-    model_dim = opt.state_dim
-    heads = opt.heads
-    depth = opt.enc_layers
+    model_dim = opts.state_dim
+    heads = opts.heads
+    depth = opts.enc_layers
     max_len = 100
 
-    model = TransformerEncoderDecoder(k=model_dim, heads=heads, dropout=opt.dropout[0],
+    model = TransformerEncoderDecoder(k=model_dim, heads=heads, dropout=opts.dropout[0],
                                       depth=depth,
                                       num_emb=src_vocab_size,
                                       num_emb_target=trg_vocab_size,
@@ -98,13 +98,13 @@ def train(opt):
     start_steps = load_model_state(os.path.join(model_dir, 'checkpoints_best.pt'), model,
                                    data_parallel=False)
 
-    criterion = LabelSmoothing(size=trg_vocab_size, padding_idx=pad_idx, smoothing=opt.label_smoothing)
+    criterion = LabelSmoothing(size=trg_vocab_size, padding_idx=pad_idx, smoothing=opts.label_smoothing)
     optimizer = NoamOpt(model_dim, 1, 2000, torch.optim.Adam(model.parameters(),
-                                                             lr=opt.learning_rate,
+                                                             lr=opts.learning_rate,
                                                              betas=(0.9, 0.98), eps=1e-9))
     compute_loss = SimpleLossCompute(model.generator, criterion, optimizer)
 
-    cuda_condition = torch.cuda.is_available() and opt.gpu_ranks
+    cuda_condition = torch.cuda.is_available() and opts.gpu_ranks
     device = torch.device("cuda:0" if cuda_condition else "cpu")
 
     if cuda_condition:
@@ -118,7 +118,7 @@ def train(opt):
     # start steps defines if training was intrupted
     global_steps = start_steps
     iterations = 0
-    while global_steps <= opt.train_steps:
+    while global_steps <= opts.train_steps:
         start = time.time()
         total_tokens = 0
         total_loss = 0
@@ -133,7 +133,7 @@ def train(opt):
             total_tokens += batch.ntokens
             tokens += batch.ntokens
 
-            if i % opt.report_every == 0 and i > 0:
+            if i % opts.report_every == 0 and i > 0:
                 elapsed = time.time() - start
                 print("Epoch %d Step: %d Loss: %f PPL: %f Tokens per Sec: %f" %
                       (iterations, i, loss / batch.ntokens, get_perplexity(loss / batch.ntokens), tokens / elapsed))
@@ -143,10 +143,10 @@ def train(opt):
                 # save_state(os.path.join(model_dir, checkpoint), model, criterion, optimizer, epoch)
         loss_average = total_loss / total_tokens
         checkpoint = "checkpoint.{}.".format(loss_average) + 'epoch' + str(iterations) + ".pt"
-        save_state(os.path.join(model_dir, checkpoint), model, criterion, optimizer, iterations)
+        save_state(os.path.join(model_dir, checkpoint), model, criterion, optimizer, global_steps, fields, opts)
 
         if previous_best > loss_average:
-            save_state(os.path.join(model_dir, 'checkpoints_best.pt'), model, criterion, optimizer, global_steps)
+            save_state(os.path.join(model_dir, 'checkpoints_best.pt'), model, criterion, optimizer, global_steps, fields, opts)
             previous_best = loss_average
 
 
