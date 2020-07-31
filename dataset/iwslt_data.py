@@ -10,46 +10,73 @@
  """
 
 # For utils loading.
+from os import path
+
+import dill
 import torch
+from pathlib import Path
 from torch import nn
 from torch.autograd import Variable
 from torchtext import data, datasets
 import numpy as np
+from torchtext.data import Dataset
 
 
-def get_data():
-    import spacy
-    spacy_de = spacy.load('de')
-    spacy_en = spacy.load('en')
-
-    def tokenize_de(text):
-        return [tok.text for tok in spacy_de.tokenizer(text)]
-
-    def tokenize_en(text):
-        return [tok.text for tok in spacy_en.tokenizer(text)]
-
-    BOS_WORD = '<sos>'
-    EOS_WORD = '<eos>'
-    BLANK_WORD = "<blank>"
-    SRC = data.Field(tokenize=tokenize_de, pad_token=BLANK_WORD)
-    TGT = data.Field(tokenize=tokenize_en, init_token = BOS_WORD,
-                     eos_token = EOS_WORD, pad_token=BLANK_WORD)
-
+def get_data(args):
     MAX_LEN = 100
-    train, val, test = datasets.IWSLT.splits(
-        exts=('.de', '.en'), fields=(SRC, TGT),
-        filter_pred=lambda x: len(vars(x)['src']) <= MAX_LEN and
-            len(vars(x)['trg']) <= MAX_LEN)
-    MIN_FREQ = 2
-    SRC.build_vocab(train.src, min_freq=MIN_FREQ)
-    TGT.build_vocab(train.trg, min_freq=MIN_FREQ)
-    # The following works so we can simply apply spm here then
-    # assign back the segmented text
-    # for line in val:
-    #     line.src = "Hello"
-    # for line in val:
-    #     print(line.src)
-    return train, val, test, SRC, TGT
+    if path.exists("{0}/SRC.fields".format(args.model)) and \
+            path.exists("{0}/TGT.fields".format(args.model)):
+        print('Fields exists..')
+
+        with open("{0}/SRC.fields".format(args.model), "rb") as f:
+            SRC = dill.load(f)
+
+        with open("{0}/TGT.fields".format(args.model), "rb") as f:
+            TGT = dill.load(f)
+
+        train, val, test = datasets.IWSLT.splits(
+            exts=('.de', '.en'), fields=(SRC, TGT),
+            filter_pred=lambda x: len(vars(x)['src']) <= MAX_LEN and
+                                  len(vars(x)['trg']) <= MAX_LEN)
+        return train, val, test, SRC, TGT
+
+    else:
+        import spacy
+
+        spacy_de = spacy.load('de_core_news_sm')
+        spacy_en = spacy.load('en_core_web_sm')
+
+        print('Fields donot exists..')
+
+        def tokenize_de(text):
+            return [tok.text for tok in spacy_de.tokenizer(text)]
+
+        def tokenize_en(text):
+            return [tok.text for tok in spacy_en.tokenizer(text)]
+
+        BOS_WORD = '<sos>'
+        EOS_WORD = '<eos>'
+        BLANK_WORD = "<blank>"
+
+        SRC = data.Field(tokenize=tokenize_de, pad_token=BLANK_WORD)
+        TGT = data.Field(tokenize=tokenize_en, init_token = BOS_WORD,
+                         eos_token = EOS_WORD, pad_token=BLANK_WORD)
+
+        train, val, test = datasets.IWSLT.splits(
+            exts=('.de', '.en'), fields=(SRC, TGT),
+            filter_pred=lambda x: len(vars(x)['src']) <= MAX_LEN and
+                                  len(vars(x)['trg']) <= MAX_LEN)
+
+        MIN_FREQ = 2
+        SRC.build_vocab(train.src, min_freq=MIN_FREQ)
+        TGT.build_vocab(train.trg, min_freq=MIN_FREQ)
+
+        with open("{0}/SRC.fields".format(args.model), "wb") as f:
+            dill.dump(SRC, f)
+        with open("{0}/TGT.fields".format(args.model), "wb") as f:
+            dill.dump(TGT, f)
+
+        return train, val, test, SRC, TGT
 
 
 global max_src_in_batch, max_tgt_in_batch
@@ -112,6 +139,8 @@ class Batch:
             self.trg_mask = \
                 self.make_std_mask(self.trg, pad).to(device)
             self.ntokens = (self.trg_y != pad).data.sum()
+        else:
+            self.ntokens = (src != pad).data.sum()
 
     @staticmethod
     def make_std_mask(tgt, pad):
@@ -153,6 +182,18 @@ def rebatch(pad_idx, batch, device='cpu'):
     "Fix order in torchtext to match ours"
     src, trg = batch.src.transpose(0, 1), batch.trg.transpose(0, 1)
     return Batch(src, trg, pad_idx, device=device)
+
+
+def rebatch_onmt(pad_idx, batch, device='cpu'):
+    "Fix order in torchtext to match ours"
+    src, trg = batch.src[0].squeeze(-1).transpose(0, 1), batch.tgt.squeeze(-1).transpose(0, 1)
+    return Batch(src, trg, pad_idx, device=device)
+
+
+def rebatch_source_only(pad_idx, batch, device='cpu'):
+    "Fix order in torchtext to match ours"
+    src = batch.src[0].squeeze(-1).transpose(0, 1)
+    return Batch(src, pad=pad_idx, device=device)
 
 
 def rebatch_data(pad_idx, batch, device='cpu'):
@@ -244,3 +285,19 @@ def get_std_opt(model):
     return NoamOpt(model.src_embed[0].d_model, 2, 4000,
                    torch.optim.Adam(model.parameters(), lr=0, betas=(0.9, 0.98), eps=1e-9))
 
+
+def save_dataset(dataset, path):
+    if not isinstance(path, Path):
+        path = Path(path)
+    path.mkdir(parents=True, exist_ok=True)
+    torch.save(dataset.examples, path/"examples.pkl", pickle_module=dill)
+    torch.save(dataset.fields, path/"fields.pkl", pickle_module=dill)
+
+
+def load_dataset(path):
+    if not isinstance(path, Path):
+        path = Path(path)
+    print(path/"examples.pkl")
+    examples = torch.load(path/"examples.pkl", pickle_module=dill, encoding='ascii')
+    fields = torch.load(path/"fields.pkl", pickle_module=dill, encoding='ascii')
+    return Dataset(examples, fields)

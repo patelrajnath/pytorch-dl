@@ -16,6 +16,7 @@ It also contains BERT training-
 ##### INSTALL Dependencies
 ```bash
 pip3 install -r requirements.txt
+python -m spacy download en
 ```
 ##### IMDB classification:
 ```bash
@@ -27,9 +28,33 @@ python3 classify.py
 python3 pretrain_bert.py
 ```
 
-##### mBert training:
+##### mBART training:
 ```bash
-python3 pretrain_mbert.py
+python3 pretrain_mbart.py
+```
+
+#### Train NMT model
+
+##### Prepare data
+```bash
+cd examples/translation/
+bash prepare-iwslt14.sh
+cd -
+bash prep.sh
+```
+
+##### Train model
+```bash
+bash train.sh
+```
+##### Decode the binarized validation data
+```bash
+bash decode.sh
+```
+
+##### Translate a text file
+```bash
+bash translate_file.sh
 ```
 
 ## Author
