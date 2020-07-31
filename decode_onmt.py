@@ -34,28 +34,6 @@ def decode(opt):
 
     set_random_seed(opt.seed, False)
 
-    vocab = torch.load(opt.data + '.vocab.pt')
-
-    # check for code where vocab is saved instead of fields
-    # (in the future this will be done in a smarter way)
-    if old_style_vocab(vocab):
-        fields = load_old_vocab(
-            vocab, opt.model_type, dynamic_dict=opt.copy_attn)
-    else:
-        fields = vocab
-
-    # patch for fields that may be missing in old data/model
-    patch_fields(opt, fields)
-
-    src_vocab = fields['src'].base_field.vocab
-    trg_vocab = fields['tgt'].base_field.vocab
-
-    src_vocab_size = len(src_vocab)
-    trg_vocab_size = len(trg_vocab)
-
-    valid_iter = build_dataset_iter(
-        "valid", fields, opt, is_train=False)
-
     pad_idx = 1
 
     model_dir = opt.save_model
@@ -64,32 +42,12 @@ def decode(opt):
     except OSError:
         pass
 
-    model_dim = opt.state_dim
-    heads = opt.heads
-    depth = opt.enc_layers
-    max_len = 100
-
-    model = TransformerEncoderDecoder(k=model_dim, heads=heads, dropout=opt.dropout[0],
-                                      depth=depth,
-                                      num_emb=src_vocab_size,
-                                      num_emb_target=trg_vocab_size,
-                                      max_len=max_len,
-                                      mask_future_steps=True)
-
-    # Initialize parameters with Glorot / fan_avg.
-    for p in model.parameters():
-        if p.dim() > 1:
-            nn.init.xavier_uniform_(p)
-
-    start_steps = load_model_state(os.path.join(model_dir, 'checkpoints_best.pt'), model,
-                                   data_parallel=False)
+    start_steps, model, fields = load_model_state(os.path.join(model_dir, 'checkpoints_best.pt'), opts,
+                                                  data_parallel=False)
     model.eval()
 
-    criterion = LabelSmoothing(size=trg_vocab_size, padding_idx=pad_idx, smoothing=opt.label_smoothing)
-    optimizer = NoamOpt(model_dim, 1, 2000, torch.optim.Adam(model.parameters(),
-                                                             lr=opt.learning_rate,
-                                                             betas=(0.9, 0.98), eps=1e-9))
-    compute_loss = SimpleLossCompute(model.generator, criterion, optimizer)
+    valid_iter = build_dataset_iter(
+        "valid", fields, opt, is_train=False)
 
     cuda_condition = torch.cuda.is_available() and opt.gpu_ranks
     device = torch.device("cuda:0" if cuda_condition else "cpu")
