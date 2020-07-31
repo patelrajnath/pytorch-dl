@@ -20,7 +20,7 @@ from onmt.utils.parse import ArgumentParser
 def translate(opt):
     set_random_seed(opt.seed, False)
 
-    start_steps, model, fields = load_model_state(os.path.join(opt.models[0], 'checkpoints_best.pt'), opts,
+    start_steps, model, fields = load_model_state(os.path.join(opt.models[0], 'checkpoints_best.pt'), opt,
                                                   data_parallel=False)
     model.eval()
 
@@ -55,7 +55,7 @@ def translate(opt):
         shuffle=False
     )
 
-    cuda_condition = torch.cuda.is_available() and opt.gpu
+    cuda_condition = torch.cuda.is_available() and not opt.cpu
     device = torch.device("cuda:0" if cuda_condition else "cpu")
 
     if cuda_condition:
