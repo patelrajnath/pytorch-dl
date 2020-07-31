@@ -104,13 +104,18 @@ def decode(opt):
     with torch.no_grad():
         translated = list()
         reference = list()
+        start = time.time()
         for k, batch in enumerate(rebatch_onmt(pad_idx, b, device=device) for b in valid_iter):
             print('Processing: {0}'.format(k))
             start_symbol = trg_vocab.stoi["<s>"]
 
             # out = greedy_decode(model, batch.src, batch.src_mask, start_symbol=start_symbol)
-            out = batched_beam_search(model, batch.src, batch.src_mask, start_symbol=start_symbol, pad_symbol=pad_idx,
-                              max=batch.ntokens + 10)
+            # out = beam_search(model, batch.src, batch.src_mask,
+            #                           start_symbol=start_symbol, pad_symbol=pad_idx,
+            #                           max=batch.ntokens + 10)
+            out = batched_beam_search(model, batch.src, batch.src_mask,
+                                      start_symbol=start_symbol, pad_symbol=pad_idx,
+                                      max=batch.ntokens + 10)
 
             # print("Source:", end="\t")
             # for i in range(1, batch.src.size(1)):
@@ -144,6 +149,7 @@ def decode(opt):
             outfile.write('\n'.join(translated))
         with open('valid-ref.de-en.en', 'w', encoding='utf-8') as outfile:
             outfile.write('\n'.join(reference))
+        print('Time elapsed:{}'.format(time.time()- start))
 
 
 def _get_parser():
