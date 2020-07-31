@@ -142,10 +142,10 @@ def decode(opt):
                 ref.append(sym)
             reference.append(" ".join(ref))
 
-            if k == 1:
-                break
+#             if k == 1:
+#                 break
 
-        with open('valid-beam-decode-test5.de-en.en', 'w', encoding='utf8') as outfile:
+        with open('valid-beam-decode-test.de-en.en', 'w', encoding='utf8') as outfile:
             outfile.write('\n'.join(translated))
         with open('valid-ref.de-en.en', 'w', encoding='utf-8') as outfile:
             outfile.write('\n'.join(reference))
