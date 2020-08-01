@@ -44,6 +44,30 @@ bash decode.sh
 bash translate_file.sh
 ```
 
+### mBART training
+##### Prepare data
+```bash
+cd examples/translation/
+bash prepare-iwslt14.sh
+
+# This will add language tag at the end of each segment in the corpu
+sed -e 's/$/ <EN>/' train.en > train-mbart.txt
+sed -e 's/$/ <DE>/' train.de >> train-mbart.txt
+
+sed -e 's/$/ <EN>/' valid.en > valid-mbart.txt
+sed -e 's/$/ <DE>/' valid.de >> valid-mbart.txt
+cd -
+bash prep_mbart.sh
+```
+
+##### Train model
+```bash
+bash train_mbart.sh
+```
+**Note**: This model now could be directly used for NMT training as 
+described in the above section.
+Simply provide the model path (--save_model) and it will be automatically used for further fine-tuning. 
+
 ### IMDB classification:
 ```bash
 python3 classify.py
@@ -52,11 +76,6 @@ python3 classify.py
 ### Bert training:
 ```bash
 python3 pretrain_bert.py
-```
-
-### mBART training:
-```bash
-python3 pretrain_mbart.py
 ```
 
 ### Author
