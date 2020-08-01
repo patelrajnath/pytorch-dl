@@ -73,20 +73,37 @@ Check the sample shell scripts in the following section for both
 corpus preparation and training. 
 
 ##### Finetune NMT model
+
 ```bash
 bash prep_finetune_mbart_nmt.sh
 bash finetune_mbart_nmt.sh
 ```
 
-### IMDB classification:
+### RoBerta/Bert without NSP training:
+##### Prepare corpus 
 ```bash
-python3 classify.py
+cd examples/translation/
+bash prepare-iwslt14.sh
+
+# This will add language tag at the end of each segment in the corpu
+sed -e 's/$/ <EN>/' train.en > train-mbart.txt
+sed -e 's/$/ <DE>/' train.de >> train-mbart.txt
+sed -e 's/$/ <EN>/' valid.en > valid-mbart.txt
+sed -e 's/$/ <DE>/' valid.de >> valid-mbart.txt
+cd -
+bash prep_roberta.sh
+```
+##### Train model
+```bash
+bash train_roberta.sh
 ```
 
-### Bert training:
+### IMDB classification:
 ```bash
-python3 pretrain_bert.py
+prep_roberta.sh
+
 ```
+
 
 ### Author
 Raj Nath Patel (patelrajnath@gmail.com)
