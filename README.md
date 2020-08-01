@@ -3,9 +3,8 @@ This project implements the classification task using Transformer model. On IMDB
 
 It also contains BERT training- 
 * Transformer based Neural MT training and decoding
-* Training and fine tuning mBart for Neural MT
+* Training and fine tuning mBart for Neural MT ([mBart](https://arxiv.org/pdf/2001.08210.pdf))
 * Bert encoder ([Default Bert](https://arxiv.org/pdf/1810.04805.pdf))
-* Bert encoder-decoder ([mBart](https://arxiv.org/pdf/2001.08210.pdf))
 
 ## Prerequisite
 - python (3.6+)
@@ -67,6 +66,12 @@ bash train_mbart.sh
 **Note**: This model now could be directly used for NMT training as 
 described in the above section.
 Simply provide the model path (--save_model) and it will be automatically used for further fine-tuning. 
+
+##### Finetune NMT model
+```bash
+bash prep_finetune_mbart_nmt.sh
+bash finetune_mbart_nmt.sh
+```
 
 ### IMDB classification:
 ```bash
