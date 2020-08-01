@@ -28,7 +28,7 @@ class Bert(nn.Module):
             tblocks.append(TransformerBlock(emb_dim=self.h, heads=heads, multihead_shared_emb=True))
         self.tblocks = nn.Sequential(*tblocks)
 
-    def forward(self, x, segment_label):
-        x = self.bert_embeddings(x, segment_label)
+    def forward(self, x, x_mask=None, segment=None):
+        x = self.bert_embeddings(x, segment)
         x = self.tblocks(x)
         return x

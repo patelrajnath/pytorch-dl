@@ -19,9 +19,12 @@ class BertLanguageModel(nn.Module):
         self.masked_lm = MaskedLanguageModel(bert.h, vocab_size)
         self.next_sentence = NextSentencePrediction(bert.h)
 
-    def forward(self, x, segment):
+    def forward(self, x, segment=None):
         x = self.bert(x, segment)
-        return self.masked_lm(x), self.next_sentence(x)
+        if segment:
+            return self.masked_lm(x), self.next_sentence(x)
+        else:
+            return self.masked_lm(x)
 
 
 class MaskedLanguageModel(nn.Module):
