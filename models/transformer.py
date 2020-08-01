@@ -232,49 +232,6 @@ class TransformerEncoderDecoder(nn.Module):
                                           dropout=dropout, multihead_shared_emb=True)
         self.generator = Generator(k, num_emb_target)
 
-    def beam_search(self, features, states=None, max_len=20, k=20):
-        '''generate sequence with length=max_len from features'''
-
-        # The second one is【BeamSearch】: iteratively consider the set
-        # of the k best sentences up to time t as candidates to generate
-        # sentences of size t + 1, and keep only the resulting best k
-        # of them. This better approximates S = arg maxS′ p(S′|I).
-        # We used the BeamSearch approach in the following experi-
-        # ments, with a beam of size 20. Using a beam size of 1 (i.e.,
-        # greedy search) did degrade our results by 2 BLEU points on
-        # average. https://arxiv.org/pdf/1411.4555.pdf
-
-        topk = [[[], .0, None]]  # [sequence, score, key_states]
-        states_prev, states_curr = {}, {}
-        lstm_input = features.unsqueeze(1)
-
-        for _ in range(max_len):
-            candidates = []
-            for i, (seq, score, key_states) in enumerate(topk):
-                # get decoder output
-                if seq:
-                    # lstm_input = self.embedding(seq[-1].unsqueeze(0).unsqueeze(0))
-                    token = seq[-1].unsqueeze(0).unsqueeze(0)
-                    states = states_prev[key_states]
-                lstm_output, states = self.decoder(token, states)
-                # store hidden states
-                states_curr[i] = states
-                # get token probabilities
-                output = self.generator(lstm_output)
-                output = F.log_softmax(output, dim=2)
-                output = output[0][0]
-                # calculate scores
-                for (idx, val) in enumerate(output):
-                    candidate = [seq + [torch.tensor(idx).to(output.device)], score + val.item(), i]
-                    candidates.append(candidate)
-
-            # update hidden states dictionary
-            states_prev, states_curr = states_curr, {}
-            # order all candidates by score, select k-best
-            topk = sorted(candidates, key=lambda x: x[1], reverse=True)[:k]
-
-        return [idx.item() for idx in topk[0][0]]
-
     def forward(self, src_tokens, src_mask, tgt_tokens=None, trg_mask=None, predict=False):
         memory = self.encoder(src_tokens, src_mask)
 
