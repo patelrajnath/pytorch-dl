@@ -125,6 +125,8 @@ def process_one_shard(corpus_params, params):
                             # add 0 as these wont be required to be predicted during training
                             output_labels.append(unk_token)
                     setattr(ex, name, [tokens])
+
+                    # For Bert/Roberta training, we need to change the target
                     setattr(ex, 'tgt', [output_labels])
 
     if corpus_type == "train" and existing_fields is None:

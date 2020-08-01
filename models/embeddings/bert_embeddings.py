@@ -24,12 +24,13 @@ class BertEmbeddings(nn.Module):
         self.dropout = nn.Dropout(dropout)
         self.embedding_dim = emb_dim
 
-    def forward(self, x, segment_label):
+    def forward(self, x, segment_label=None):
         x = self.token_emb(x)
 
         # position embedding adds the token embedding and returns the final embedding
         x = self.position_emb(x)
 
-        x += self.segment_emb(segment_label)
+        if segment_label:
+            x += self.segment_emb(segment_label)
 
         return self.dropout(x)

@@ -11,7 +11,7 @@ from models.embeddings.position_emb import PositionalEncoding
 from models.embeddings.token_emb import Embeddings
 
 
-class MBertEmbeddings(nn.Module):
+class MBartEmbeddings(nn.Module):
     """
     """
     def __init__(self, vocab_size, emb_dim, dropout=0.1):

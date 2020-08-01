@@ -27,7 +27,7 @@ def go(arg):
         vocab = WordVocab(f)
         vocab.save_vocab("sample-data/vocab.pkl")
 
-    vocab = WordVocab.load_vocab("sample-data/vocab.pkl")
+    vocab = WordVocab.load_vocab("../sample-data/vocab.pkl")
 
     lr_warmup = arg.lr_warmup
     batch_size = arg.batch_size
@@ -35,7 +35,7 @@ def go(arg):
     h = arg.num_heads
     depth = arg.depth
     max_size=arg.max_length
-    model_dir = "bert"
+    model_dir = "../bert"
     try:
         os.makedirs(model_dir)
     except OSError:
