@@ -16,7 +16,7 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader
 
-from dataset.data_loader_mbert import MBertDataSet
+from dataset.data_loader_mbart import MBartDataSet
 from dataset.vocab import WordVocab
 from models.utils.model_utils import save_state, my_collate, get_perplexity
 
@@ -40,7 +40,7 @@ def go(arg):
         os.makedirs(model_dir)
     except OSError:
         pass
-    data_set = MBertDataSet(input_file, vocab, max_size)
+    data_set = MBartDataSet(input_file, vocab, max_size)
 
     data_loader = DataLoader(data_set, batch_size=batch_size,
                              collate_fn=my_collate,

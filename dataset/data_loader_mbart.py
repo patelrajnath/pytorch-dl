@@ -13,7 +13,7 @@ import tqdm
 from torch.utils.data import Dataset
 
 
-class MBertDataSet(Dataset):
+class MBartDataSet(Dataset):
     """
     """
     def __init__(self, corpus_path, vocab, max_size, corpus_lines=None, encoding="utf-8", add_sos_eos=True, on_memory=True):

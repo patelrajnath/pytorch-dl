@@ -6,6 +6,8 @@
 import codecs
 import glob
 import gc
+import random
+
 import torch
 from collections import Counter, defaultdict
 
@@ -66,11 +68,71 @@ def process_one_shard(corpus_params, params):
         filter_pred=filter_pred,
         corpus_id=maybe_id
     )
+
+    # Run mBART masking is enabled
+    if opt.mbart_masking:
+        for k, ex in enumerate(dataset.examples):
+            for name, field in fields.items():
+                # Only we need to mask the src as target needs to be exactly the same
+                # which is a copy of the src actually in case of mbart training
+                mask_token = "<mask>"
+                if name == 'src':
+                    tokens = getattr(ex, name, None)[0]
+                    for j, token in enumerate(tokens):
+                        prob = random.random()
+                        if prob < 0.35:
+                            prob /= 0.35
+                            # 80% of the tokens we replace with mask
+                            if prob < 0.80:
+                                tokens[j] = mask_token
+                            # 10% of tokens to be replaced with random word
+                            elif prob < 0.90:
+                                tokens[j] = tokens[random.randrange(len(tokens))]
+                            # Remaining 10% we keep actual word
+                            else:
+                                tokens[j] = token
+                        else:
+                            tokens[i] = token
+                    setattr(ex, name, [tokens])
+
+    # Run RoBERTA Masking
+    if opt.bert_masking:
+        for k, ex in enumerate(dataset.examples):
+            for name, field in fields.items():
+                # Only we need to mask the src as target needs to be exactly the same
+                # which is a copy of the src actually in case of mbart training
+                mask_token = "<mask>"
+                unk_token = "<unk>"
+                if name == 'src':
+                    tokens = getattr(ex, name, None)[0]
+                    output_labels = list()
+                    for k, token in enumerate(tokens):
+                        prob = random.random()
+                        if prob < 0.15:
+                            prob /= 0.15
+                            # 80% of the tokens we replace with mask
+                            if prob < 0.80:
+                                tokens[k] = mask_token
+                            # 10% of tokens to be replaced with random word
+                            elif prob < 0.90:
+                                tokens[k] = tokens[random.randrange(len(tokens))]
+                            # Remaining 10% we keep actual word
+                            else:
+                                tokens[k] = token
+                            output_labels.append(token)
+                        else:
+                            tokens[k] = token
+                            # add 0 as these wont be required to be predicted during training
+                            output_labels.append(unk_token)
+                    setattr(ex, name, [tokens])
+                    setattr(ex, 'tgt', [output_labels])
+
     if corpus_type == "train" and existing_fields is None:
         for ex in dataset.examples:
             sub_sub_counter['corpus_id'].update(
                 ["train" if maybe_id is None else maybe_id])
             for name, field in fields.items():
+
                 if (opt.data_type in ["audio", "vec"]) and name == "src":
                     continue
                 try:
