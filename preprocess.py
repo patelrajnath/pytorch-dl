@@ -78,19 +78,19 @@ def process_one_shard(corpus_params, params):
                 mask_token = "<mask>"
                 if name == 'src':
                     tokens = getattr(ex, name, None)[0]
-                    for i, token in enumerate(tokens):
+                    for j, token in enumerate(tokens):
                         prob = random.random()
                         if prob < 0.35:
                             prob /= 0.35
                             # 80% of the tokens we replace with mask
                             if prob < 0.80:
-                                tokens[i] = mask_token
+                                tokens[j] = mask_token
                             # 10% of tokens to be replaced with random word
                             elif prob < 0.90:
-                                tokens[i] = tokens[random.randrange(len(tokens))]
+                                tokens[j] = tokens[random.randrange(len(tokens))]
                             # Remaining 10% we keep actual word
                             else:
-                                tokens[i] = token
+                                tokens[j] = token
                         else:
                             tokens[i] = token
                     setattr(ex, name, [tokens])
@@ -106,22 +106,22 @@ def process_one_shard(corpus_params, params):
                 if name == 'src':
                     tokens = getattr(ex, name, None)[0]
                     output_labels = list()
-                    for i, token in enumerate(tokens):
+                    for k, token in enumerate(tokens):
                         prob = random.random()
                         if prob < 0.15:
                             prob /= 0.15
                             # 80% of the tokens we replace with mask
                             if prob < 0.80:
-                                tokens[i] = mask_token
+                                tokens[k] = mask_token
                             # 10% of tokens to be replaced with random word
                             elif prob < 0.90:
-                                tokens[i] = tokens[random.randrange(len(tokens))]
+                                tokens[k] = tokens[random.randrange(len(tokens))]
                             # Remaining 10% we keep actual word
                             else:
-                                tokens[i] = token
+                                tokens[k] = token
                             output_labels.append(token)
                         else:
-                            tokens[i] = token
+                            tokens[k] = token
                             # add 0 as these wont be required to be predicted during training
                             output_labels.append(unk_token)
                     setattr(ex, name, [tokens])
