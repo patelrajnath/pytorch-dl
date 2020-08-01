@@ -64,8 +64,12 @@ bash prep_mbart.sh
 bash train_mbart.sh
 ```
 **Note**: This model now could be directly used for NMT training as 
-described in the above section.
-Simply provide the model path (--save_model) and it will be automatically used for further fine-tuning. 
+described in the above section. Simply provide the model path (--save_model) and it will 
+be automatically used for further fine-tuning. 
+
+**Also, its important to note that we must use the same vocab used for mbart training.** 
+Check the sample shell scripts in the following section for both 
+corpus preparation and training. 
 
 ##### Finetune NMT model
 ```bash
