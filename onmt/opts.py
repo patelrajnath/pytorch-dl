@@ -267,6 +267,11 @@ def preprocess_opts(parser):
     group.add('--overwrite', '-overwrite', action="store_true",
               help="Overwrite existing shards if any.")
 
+    group.add('--mbart_masking', '-mbart_masking', action="store_true",
+              help="Enable if parallel corpus is for mBART training.")
+
+    group.add('--bert_masking', '-bert_masking', action="store_true",
+              help="Enable if parallel corpus is for BERT training.")
     # Dictionary options, for text corpus
 
     group = parser.add_argument_group('Vocab')
