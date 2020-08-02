@@ -1,6 +1,6 @@
 #!/bin/bash
 
-python train_nmt.py \
+python train.py \
 	-data data-bin/demo \
 	-save_model mbartdemo-model \
 	--batch_type tokens \
