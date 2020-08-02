@@ -50,11 +50,25 @@ cd examples/translation/
 bash prepare-iwslt14.sh
 
 # This will add language tag at the end of each segment in the corpu
-sed -e 's/$/ <EN>/' train.en > train-mbart.txt
-sed -e 's/$/ <DE>/' train.de >> train-mbart.txt
+sed -e 's/$/ <\/s> <EN>/' train.en > src-train-mbart.txt
+sed -e 's/$/ <\/s> <DE>/' train.de >> src-train-mbart.txt
 
-sed -e 's/$/ <EN>/' valid.en > valid-mbart.txt
-sed -e 's/$/ <DE>/' valid.de >> valid-mbart.txt
+sed -e 's/^/<EN> /' train.en > temp-file.en
+sed -e 's/^/<DE> /' train.de > temp-file.de
+
+sed -e 's/$/ <\/s> <EN>/' temp-file.en > tgt-train-mbart.txt
+sed -e 's/$/ <\/s> <DE>/' temp-file.de >> tgt-train-mbart.txt
+
+sed -e 's/$/ <\/s> <EN>/' valid.en > src-valid-mbart.txt
+sed -e 's/$/ <\/s> <DE>/' valid.de >> src-valid-mbart.txt
+
+sed -e 's/^/<EN> /' valid.en > temp-file.en
+sed -e 's/^/<DE> /' valid.de > temp-file.de
+
+sed -e 's/$/ <\/s> <EN>/' temp-file.en > tgt-valid-mbart.txt
+sed -e 's/$/ <\/s> <DE>/' temp-file.de >> tgt-valid-mbart.txt
+rm temp-file.en temp-file.de
+
 cd -
 bash prep_mbart.sh
 ```
@@ -75,7 +89,21 @@ corpus preparation and training.
 ##### Finetune NMT model
 
 ```bash
+# This will add language tag at the end of each segment in the corpu
+sed -e 's/$/ <\/s> <EN>/' train.en > src-train-finetune-mbart.txt
+sed -e 's/^/<DE> /' train.de > temp-file.de
+sed -e 's/$/ <\/s> <DE>/' temp-file.de > tgt-train-finetune-mbart.txt
+
+sed -e 's/$/ <\/s> <EN>/' valid.en > src-valid-finetune-mbart.txt
+sed -e 's/^/<DE> /' valid.de > temp-file.de
+sed -e 's/$/ <\/s> <DE>/' temp-file.de > tgt-valid-finetune-mbart.txt
+rm temp-file.de
+
 bash prep_finetune_mbart_nmt.sh
+```
+
+##### Train model
+```bash
 bash finetune_mbart_nmt.sh
 ```
 
@@ -84,12 +112,12 @@ bash finetune_mbart_nmt.sh
 ```bash
 cd examples/translation/
 bash prepare-iwslt14.sh
+cat train.en > train-roberta.txt
+cat train.de >> train-roberta.txt
 
-# This will add language tag at the end of each segment in the corpu
-sed -e 's/$/ <EN>/' train.en > train-mbart.txt
-sed -e 's/$/ <DE>/' train.de >> train-mbart.txt
-sed -e 's/$/ <EN>/' valid.en > valid-mbart.txt
-sed -e 's/$/ <DE>/' valid.de >> valid-mbart.txt
+cat valid.en > valid-roberta.txt
+cat valid.de >> valid-roberta.txt
+
 cd -
 bash prep_roberta.sh
 ```

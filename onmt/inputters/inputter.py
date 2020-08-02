@@ -375,6 +375,7 @@ def _build_fields_vocab(fields, counters, data_type, share_vocab,
                         vocab_size_multiple,
                         src_vocab_size, src_words_min_frequency,
                         tgt_vocab_size, tgt_words_min_frequency,
+                        subword_prefix_is_added=None,
                         subword_prefix="▁",
                         subword_prefix_is_joiner=False):
     build_fv_args = defaultdict(dict)
@@ -411,11 +412,17 @@ def _build_fields_vocab(fields, counters, data_type, share_vocab,
                 min_freq=src_words_min_frequency,
                 vocab_size_multiple=vocab_size_multiple)
             logger.info(" * merged vocab size: %d." % len(src_field.vocab))
-
-        build_noise_field(
-            src_multifield.base_field,
-            subword_prefix=subword_prefix,
-            is_joiner=subword_prefix_is_joiner)
+        if subword_prefix_is_added:
+            build_noise_field(
+                src_multifield.base_field,
+                subword=False,
+                subword_prefix=subword_prefix,
+                is_joiner=subword_prefix_is_joiner)
+        else:
+            build_noise_field(
+                src_multifield.base_field,
+                subword_prefix=subword_prefix,
+                is_joiner=subword_prefix_is_joiner)
     return fields
 
 

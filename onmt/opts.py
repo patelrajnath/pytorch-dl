@@ -363,6 +363,9 @@ def preprocess_opts(parser):
     group.add('--subword_prefix_is_joiner', '-subword_prefix_is_joiner',
               action='store_true',
               help="mask will need to be inverted if prefix is joiner")
+    group.add('--subword_prefix_is_added', '-subword_prefix_is_added',
+              action='store_true',
+              help="Enable if sos and eos symbols already added as the case for mbart training and fine-tuning.")
 
 
 def train_opts(parser):
