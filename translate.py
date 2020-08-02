@@ -30,6 +30,11 @@ def translate(opt):
     pad_idx = src_vocab.stoi["<blank>"]
     unk_idx = src_vocab.stoi["<unk>"]
     start_symbol = trg_vocab.stoi["<s>"]
+    if start_symbol == unk_idx:
+        if opt.tgt_lang_id:
+            start_symbol = trg_vocab.stoi["<" + opt.tgt_lang_id + ">"]
+        else:
+            raise AssertionError("For mBart fine-tuned model, --tgt_lang_id is necessary to set. eg DE EN etc.")
 
     with open(opt.src) as input:
         src = input.readlines()

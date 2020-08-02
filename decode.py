@@ -5,6 +5,7 @@ pytorch-dl
 Created by raj at 6:59 AM,  7/30/20
 """
 import os
+import sys
 import time
 from math import inf
 
@@ -51,6 +52,11 @@ def decode(opt):
     pad_idx = src_vocab.stoi["<blank>"]
     unk_idx = src_vocab.stoi["<unk>"]
     start_symbol = trg_vocab.stoi["<s>"]
+    if start_symbol == unk_idx:
+        if opt.tgt_lang_id:
+            start_symbol = trg_vocab.stoi["<" + opt.tgt_lang_id + ">"]
+        else:
+            raise AssertionError("For mBart fine-tuned model, --tgt_lang_id is necessary to set. eg DE EN etc.")
 
     valid_iter = build_dataset_iter(
         "valid", fields, opt, is_train=False)
@@ -67,7 +73,6 @@ def decode(opt):
         start = time.time()
         for k, batch in enumerate(rebatch_onmt(pad_idx, b, device=device) for b in valid_iter):
             print('Processing: {0}'.format(k))
-            start_symbol = trg_vocab.stoi["<s>"]
 
             # out = greedy_decode(model, batch.src, batch.src_mask, start_symbol=start_symbol)
             # out = beam_search(model, batch.src, batch.src_mask,
@@ -92,6 +97,8 @@ def decode(opt):
                 if sym == "</s>": break
                 transl.append(sym)
             translated.append(' '.join(transl))
+            print(" ".join(transl))
+            exit()
 
             # print()
             # print("Target:", end="\t")

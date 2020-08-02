@@ -144,6 +144,8 @@ def model_opts(parser):
     group.add('--src_vocab', '-src_vocab', default="",
               help="Path to an existing source vocabulary. Format: "
                    "one word per line.")
+    group.add('--tgt_lang_id', '-tgt_lang_id', default='',
+              help="Lang id used to train the mBart model, eg. EN, DE etc,.")
 
     # Attention options
     group = parser.add_argument_group('Model- Attention')
@@ -644,6 +646,9 @@ def translate_opts(parser):
                    "zero probability.")
 
     group = parser.add_argument_group('Data')
+    group.add('--tgt_lang_id', '-tgt_lang_id', default='',
+              help="Lang id used to train the mBart model, eg. EN, DE etc,.")
+
     group.add('--data_type', '-data_type', default="text",
               help="Type of the source input. Options: [text|img].")
 
