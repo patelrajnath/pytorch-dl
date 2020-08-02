@@ -78,7 +78,7 @@ def process_one_shard(corpus_params, params):
                 mask_token = "<mask>"
                 if name == 'src':
                     tokens = getattr(ex, name, None)[0]
-                    for j, token in enumerate(tokens):
+                    for j, token in enumerate(tokens[:-2]):  # Avoid the masking of end of sentence and language code
                         prob = random.random()
                         if prob < 0.35:
                             prob /= 0.35
@@ -87,7 +87,7 @@ def process_one_shard(corpus_params, params):
                                 tokens[j] = mask_token
                             # 10% of tokens to be replaced with random word
                             elif prob < 0.90:
-                                tokens[j] = tokens[random.randrange(len(tokens))]
+                                tokens[j] = tokens[random.randrange(len(tokens[:-2]))]
                             # Remaining 10% we keep actual word
                             else:
                                 tokens[j] = token
