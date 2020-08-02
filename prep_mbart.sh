@@ -1,8 +1,6 @@
 #!/bin/bash
 mkdir mbartdata-bin -p
 
-# We use a hack to use the same preprocessing pipeline by putting both the src and target the same corpus
-
 python preprocess.py \
 	-train_src examples/translation/iwslt14.tokenized.de-en/src-train-mbart.txt \
 	-train_tgt examples/translation/iwslt14.tokenized.de-en/tgt-train-mbart.txt \
