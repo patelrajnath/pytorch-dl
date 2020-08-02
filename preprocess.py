@@ -345,7 +345,7 @@ def preprocess(opt):
     logger.info(" * number of target features: %d." % tgt_nfeats)
 
     logger.info("Building `Fields` object...")
-    if opt.mbart_masking:
+    if opt.subword_prefix_is_added:
         fields = inputters.get_fields(
             opt.data_type,
             src_nfeats,
