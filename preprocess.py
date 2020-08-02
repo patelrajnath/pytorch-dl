@@ -278,6 +278,7 @@ def build_save_dataset(corpus_type, fields, src_reader, tgt_reader,
             opt.share_vocab, opt.vocab_size_multiple,
             opt.src_vocab_size, opt.src_words_min_frequency,
             opt.tgt_vocab_size, opt.tgt_words_min_frequency,
+            subword_prefix_is_added=opt.subword_prefix_is_added,
             subword_prefix=opt.subword_prefix,
             subword_prefix_is_joiner=opt.subword_prefix_is_joiner)
         if existing_fields is None:
@@ -344,14 +345,26 @@ def preprocess(opt):
     logger.info(" * number of target features: %d." % tgt_nfeats)
 
     logger.info("Building `Fields` object...")
-    fields = inputters.get_fields(
-        opt.data_type,
-        src_nfeats,
-        tgt_nfeats,
-        dynamic_dict=opt.dynamic_dict,
-        with_align=opt.train_align[0] is not None,
-        src_truncate=opt.src_seq_length_trunc,
-        tgt_truncate=opt.tgt_seq_length_trunc)
+    if opt.mbart_masking:
+        fields = inputters.get_fields(
+            opt.data_type,
+            src_nfeats,
+            tgt_nfeats,
+            bos=None,  # This is hack to be used to avoid adding <s> as it is not needed for mbart
+            eos=None,  # This is hack to be used to avoid adding </s> as we manually added it already
+            dynamic_dict=opt.dynamic_dict,
+            with_align=opt.train_align[0] is not None,
+            src_truncate=opt.src_seq_length_trunc,
+            tgt_truncate=opt.tgt_seq_length_trunc)
+    else:
+        fields = inputters.get_fields(
+            opt.data_type,
+            src_nfeats,
+            tgt_nfeats,
+            dynamic_dict=opt.dynamic_dict,
+            with_align=opt.train_align[0] is not None,
+            src_truncate=opt.src_seq_length_trunc,
+            tgt_truncate=opt.tgt_seq_length_trunc)
 
     src_reader = inputters.str2reader[opt.data_type].from_opt(opt)
     tgt_reader = inputters.str2reader["text"].from_opt(opt)
