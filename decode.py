@@ -97,8 +97,6 @@ def decode(opt):
                 if sym == "</s>": break
                 transl.append(sym)
             translated.append(' '.join(transl))
-            print(" ".join(transl))
-            exit()
 
             # print()
             # print("Target:", end="\t")
