@@ -6,5 +6,3 @@ python preprocess.py \
 	-valid_src examples/translation/iwslt14.tokenized.de-en/valid.de \
 	-valid_tgt examples/translation/iwslt14.tokenized.de-en/valid.en \
 	-save_data data-bin/demo --overwrite \
-	#--mbart_masking
-	#--bert_masking

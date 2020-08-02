@@ -1,6 +1,6 @@
 #!/bin/bash
 
-python pretrain_roberta.py \
+python train_roberta.py \
 	-data roberta-data-bin/demo \
 	-save_model roberta-demo-model \
 	--batch_type tokens \
