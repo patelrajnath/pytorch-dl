@@ -128,7 +128,7 @@ bash train_roberta.sh
 
 ### IMDB classification:
 ```bash
-prep_roberta.sh
+$python classify.py
 
 ```
 
