@@ -17,7 +17,7 @@ def make_std_mask(tgt, pad):
     return tgt_mask
 
 
-scores = torch.tensor([0.2, 0.3, 0.3, 0.4, 0.3])
+scores = torch.tensor([0.2, 0.3, 0.3, 0.1, 0.1])
 mask = make_std_mask(torch.tensor([48, 45, 67, 36, 49]), 0)
 print(mask)
 scores = scores.masked_fill(mask == 0, -1e9)
