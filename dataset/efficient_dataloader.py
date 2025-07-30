@@ -61,24 +61,48 @@ class TextDataset(Dataset):
         """Process raw data into tokenized format"""
         data = []
         
-        with open(self.data_path, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
+        # Handle directory structure for translation data
+        if Path(self.data_path).is_dir():
+            src_path = Path(self.data_path) / 'src-train.txt'
+            tgt_path = Path(self.data_path) / 'tgt-train.txt'
+            if not src_path.exists() or not tgt_path.exists():
+                src_path = Path(self.data_path) / 'src-val.txt'
+                tgt_path = Path(self.data_path) / 'tgt-val.txt'
+        else:
+            src_path = Path(self.data_path)
+            tgt_path = Path(str(self.data_path).replace('src-', 'tgt-'))
         
+        if not src_path.exists():
+            logger.error(f"Source file not found: {src_path}")
+            return data
+            
+        if not tgt_path.exists():
+            logger.error(f"Target file not found: {tgt_path}")
+            return data
+            
+        with open(src_path, 'r', encoding='utf-8') as f_src, \
+             open(tgt_path, 'r', encoding='utf-8') as f_tgt:
+            src_lines = f_src.readlines()
+            tgt_lines = f_tgt.readlines()
+            
+        if len(src_lines) != len(tgt_lines):
+            logger.warning(f"Source and target files have different lengths: {len(src_lines)} vs {len(tgt_lines)}")
+            min_len = min(len(src_lines), len(tgt_lines))
+            src_lines = src_lines[:min_len]
+            tgt_lines = tgt_lines[:min_len]
+        
+        samples = list(zip(src_lines, tgt_lines))
         with ThreadPoolExecutor(max_workers=4) as executor:
-            processed_samples = list(executor.map(self._process_sample, lines))
+            processed_samples = list(executor.map(self._process_sample, samples))
         
         data = [sample for sample in processed_samples if sample is not None]
+        logger.info(f"Processed {len(data)} samples from {len(src_lines)} total lines")
         return data
     
-    def _process_sample(self, line: str) -> Optional[Dict[str, torch.Tensor]]:
+    def _process_sample(self, sample: tuple) -> Optional[Dict[str, torch.Tensor]]:
         """Process a single sample"""
         try:
-            # Assuming format: source_text\ttarget_text
-            parts = line.strip().split('\t')
-            if len(parts) != 2:
-                return None
-            
-            source_text, target_text = parts
+            source_text, target_text = sample
             
             # Tokenize
             source_tokens = self.tokenizer.encode(source_text)
@@ -95,8 +119,8 @@ class TextDataset(Dataset):
             return {
                 'source': torch.tensor(source_tokens, dtype=torch.long),
                 'target': torch.tensor(target_tokens, dtype=torch.long),
-                'source_length': len(source_tokens),
-                'target_length': len(target_tokens)
+                'source_length': torch.tensor(len(source_tokens), dtype=torch.long),
+                'target_length': torch.tensor(len(target_tokens), dtype=torch.long)
             }
         except Exception as e:
             logger.warning(f"Error processing sample: {e}")
@@ -289,7 +313,7 @@ class DataModule:
     def train_dataloader(self) -> DataLoader:
         """Training dataloader"""
         if self.use_dynamic_batching:
-            lengths = [item['source_length'].item() + item['target_length'].item() 
+            lengths = [item['source_length'] + item['target_length'] 
                       for item in self.train_dataset]
             sampler = DynamicBatchSampler(
                 lengths, self.batch_size, self.max_tokens_per_batch, shuffle=True

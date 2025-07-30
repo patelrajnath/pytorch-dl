@@ -71,7 +71,7 @@ class MultiHeadAttention(nn.Module):
                 mask = mask.unsqueeze(1)  # Add head dimension
             elif mask.dim() == 3 and mask.size(1) != self.n_heads:
                 mask = mask.unsqueeze(1)  # Add head dimension
-            scores = scores.masked_fill(mask == 0, -1e9)
+            scores = scores.masked_fill(mask == 0, -1e4)
         
         # Apply softmax
         attention_weights = F.softmax(scores, dim=-1)
@@ -122,7 +122,7 @@ class EfficientSelfAttention(nn.Module):
         scores = torch.matmul(Q, K.transpose(-2, -1)) / math.sqrt(self.d_k)
         
         if mask is not None:
-            scores = scores.masked_fill(mask == 0, -1e9)
+            scores = scores.masked_fill(mask == 0, -1e4)
         
         attention_weights = F.softmax(scores, dim=-1)
         attention_weights = self.dropout(attention_weights)
@@ -167,7 +167,7 @@ class CrossAttention(nn.Module):
         scores = torch.matmul(Q, K.transpose(-2, -1)) / math.sqrt(self.d_k)
         
         if mask is not None:
-            scores = scores.masked_fill(mask == 0, -1e9)
+            scores = scores.masked_fill(mask == 0, -1e4)
         
         attention_weights = F.softmax(scores, dim=-1)
         attention_weights = self.dropout(attention_weights)

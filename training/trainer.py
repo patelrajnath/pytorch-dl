@@ -172,13 +172,17 @@ class OptimizedTrainer:
         target = batch['target'].to(self.device)
         
         # Create masks
-        source_mask = (source != 0).unsqueeze(1).unsqueeze(2)
-        target_mask = (target != 0).unsqueeze(1).unsqueeze(2)
+        batch_size, src_len = source.size()
+        batch_size, tgt_len = target.size()
         
-        # Create causal mask
+        # Source mask: (batch_size, 1, 1, src_len) - for encoder
+        source_mask = (source != 0).unsqueeze(1).unsqueeze(1)  # Shape: (batch, 1, 1, src_len)
+        
+        # Target mask: (batch_size, 1, tgt_len, tgt_len) - for decoder self-attention
+        target_padding_mask = (target != 0).unsqueeze(1).unsqueeze(1)  # Shape: (batch, 1, 1, tgt_len)
         seq_len = target.size(1)
-        causal_mask = torch.tril(torch.ones(seq_len, seq_len, device=self.device))
-        target_mask = target_mask & causal_mask.unsqueeze(0).unsqueeze(0)
+        causal_mask = torch.tril(torch.ones(seq_len, seq_len, device=self.device)).bool()
+        target_mask = target_padding_mask.expand(batch_size, 1, tgt_len, tgt_len) & causal_mask.unsqueeze(0).unsqueeze(0)
         
         # Forward pass with mixed precision
         with autocast(enabled=self.mixed_precision):
@@ -228,13 +232,15 @@ class OptimizedTrainer:
                 target = batch['target'].to(self.device)
                 
                 # Create masks
-                source_mask = (source != 0).unsqueeze(1).unsqueeze(2)
-                target_mask = (target != 0).unsqueeze(1).unsqueeze(2)
+                batch_size, src_len = source.size()
+                batch_size, tgt_len = target.size()
+                source_mask = (source != 0).unsqueeze(1).unsqueeze(1).expand(batch_size, 1, 1, src_len)
+                target_mask = (target != 0).unsqueeze(1).unsqueeze(1).expand(batch_size, 1, tgt_len, tgt_len)
                 
                 # Create causal mask
                 seq_len = target.size(1)
-                causal_mask = torch.tril(torch.ones(seq_len, seq_len, device=self.device))
-                target_mask = target_mask & causal_mask.unsqueeze(0).unsqueeze(0)
+                causal_mask = torch.tril(torch.ones(seq_len, seq_len, device=self.device)).bool()
+                target_mask = target_mask.bool() & causal_mask.unsqueeze(0).unsqueeze(0).expand(batch_size, 1, tgt_len, tgt_len)
                 
                 # Forward pass
                 logits = self.model(source, target, source_mask, target_mask)
@@ -381,18 +387,23 @@ def create_trainer(
     # Create optimizer
     optimizer = AdamW(
         model.parameters(),
-        lr=config.learning_rate,
-        weight_decay=config.weight_decay
+        lr=config.optimizer.learning_rate,
+        weight_decay=config.optimizer.weight_decay
     )
     
     # Create scheduler
-    total_steps = len(train_dataloader) * 10  # Assuming 10 epochs
+    total_steps = len(train_dataloader) * config.training.num_epochs
     scheduler = OneCycleLR(
         optimizer,
-        max_lr=config.learning_rate,
+        max_lr=config.optimizer.learning_rate,
         total_steps=total_steps,
-        pct_start=0.1
+        pct_start=config.scheduler.pct_start
     )
+    
+    # Extract relevant configuration values
+    config_dict = config.to_dict()
+    training_config = config_dict.get('training', {})
+    logging_config = config_dict.get('logging', {})
     
     return OptimizedTrainer(
         model=model,
@@ -401,5 +412,12 @@ def create_trainer(
         optimizer=optimizer,
         scheduler=scheduler,
         device=device,
-        **config.to_dict()
+        mixed_precision=training_config.get('mixed_precision', True),
+        gradient_accumulation_steps=training_config.get('gradient_accumulation_steps', 1),
+        max_grad_norm=training_config.get('max_grad_norm', 1.0),
+        log_dir=logging_config.get('log_dir', './logs'),
+        checkpoint_dir=logging_config.get('checkpoint_dir', './checkpoints'),
+        save_every=training_config.get('save_every', 1000),
+        eval_every=training_config.get('eval_every', 500),
+        patience=training_config.get('patience', 10),
     )

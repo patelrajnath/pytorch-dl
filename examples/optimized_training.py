@@ -27,17 +27,17 @@ def main():
     config = get_config('base')
     config.update(
         data={
-            'train_data_path': './sample-data/translation/train.txt',
-            'val_data_path': './sample-data/translation/val.txt',
-            'test_data_path': './sample-data/translation/test.txt',
+            'train_data_path': './sample-data/translation',
+            'val_data_path': './sample-data/translation',
+            'test_data_path': './sample-data/translation',
             'tokenizer_name': 'gpt2',
             'max_length': 128,
         },
         training={
-            'batch_size': 16,
+            'batch_size': 8,
             'learning_rate': 1e-4,
-            'num_epochs': 5,
-            'mixed_precision': True,
+            'num_epochs': 2,
+            'mixed_precision': False,
             'gradient_accumulation_steps': 1,
         },
         logging={

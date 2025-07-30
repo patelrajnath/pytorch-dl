@@ -1,0 +1,22 @@
+2025-07-30 16:03:07,575 - training.trainer - INFO - Starting training for 5 epochs
+2025-07-30 16:03:07,575 - training.trainer - INFO - Epoch 1/5
+2025-07-30 16:04:14,027 - training.trainer - INFO - Starting training for 5 epochs
+2025-07-30 16:04:14,029 - training.trainer - INFO - Epoch 1/5
+2025-07-30 16:05:54,274 - training.trainer - INFO - Starting training for 5 epochs
+2025-07-30 16:05:54,286 - training.trainer - INFO - Epoch 1/5
+2025-07-30 16:09:56,399 - training.trainer - INFO - Starting training for 2 epochs
+2025-07-30 16:09:56,399 - training.trainer - INFO - Epoch 1/2
+2025-07-30 16:12:01,658 - training.trainer - INFO - Starting training for 2 epochs
+2025-07-30 16:12:01,659 - training.trainer - INFO - Epoch 1/2
+2025-07-30 16:12:18,607 - training.trainer - INFO - Step 100: Loss: 10.1916, Tokens/sec: 680.66
+2025-07-30 16:12:34,699 - training.trainer - INFO - Step 200: Loss: 8.9228, Tokens/sec: 825.16
+2025-07-30 16:12:54,474 - training.trainer - INFO - Step 300: Loss: 7.8761, Tokens/sec: 880.36
+2025-07-30 16:13:13,504 - training.trainer - INFO - Step 400: Loss: 7.2922, Tokens/sec: 946.04
+2025-07-30 16:13:33,680 - training.trainer - INFO - Step 500: Loss: 6.8984, Tokens/sec: 993.68
+2025-07-30 16:14:34,187 - training.trainer - INFO - Starting training for 2 epochs
+2025-07-30 16:14:34,187 - training.trainer - INFO - Epoch 1/2
+2025-07-30 16:14:51,809 - training.trainer - INFO - Step 100: Loss: 10.1693, Tokens/sec: 656.46
+2025-07-30 16:15:08,136 - training.trainer - INFO - Step 200: Loss: 8.8957, Tokens/sec: 800.27
+2025-07-30 16:15:27,757 - training.trainer - INFO - Step 300: Loss: 7.8533, Tokens/sec: 866.16
+2025-07-30 16:15:46,483 - training.trainer - INFO - Step 400: Loss: 7.2761, Tokens/sec: 939.48
+2025-07-30 16:16:06,982 - training.trainer - INFO - Step 500: Loss: 6.8837, Tokens/sec: 986.00

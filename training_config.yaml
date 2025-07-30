@@ -1,0 +1,67 @@
+data:
+  cache_dir: ./cache
+  max_length: 128
+  overwrite_cache: false
+  preprocessing_num_workers: 4
+  test_data_path: ./sample-data/translation
+  tokenizer_name: gpt2
+  train_data_path: ./sample-data/translation
+  val_data_path: ./sample-data/translation
+logging:
+  checkpoint_dir: ./checkpoints
+  log_dir: ./logs
+  log_level: INFO
+  tensorboard: true
+  wandb: false
+  wandb_project: null
+model:
+  activation: swiglu
+  d_ff: 2048
+  d_model: 512
+  dropout: 0.1
+  max_seq_len: 512
+  n_heads: 8
+  norm_type: rmsnorm
+  num_decoder_layers: 6
+  num_encoder_layers: 6
+  pad_token_id: 0
+  share_embeddings: false
+  use_checkpointing: false
+  vocab_size: 32000
+optimizer:
+  betas:
+  - 0.9
+  - 0.999
+  eps: 1.0e-08
+  learning_rate: 0.0001
+  name: AdamW
+  weight_decay: 0.01
+scheduler:
+  anneal_strategy: cos
+  name: OneCycleLR
+  pct_start: 0.1
+  total_steps: null
+  warmup_steps: 1000
+system:
+  device: cuda
+  distributed: false
+  local_rank: 0
+  num_workers: 4
+  persistent_workers: false
+  pin_memory: true
+  prefetch_factor: 2
+  world_size: 1
+training:
+  batch_size: 8
+  eval_every: 500
+  gradient_accumulation_steps: 1
+  learning_rate: 0.0001
+  max_grad_norm: 1.0
+  max_tokens_per_batch: null
+  mixed_precision: false
+  num_epochs: 2
+  patience: 10
+  save_every: 1000
+  use_dynamic_batching: true
+  warmup_steps: 1000
+  weight_decay: 0.01

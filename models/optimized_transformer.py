@@ -116,7 +116,7 @@ class OptimizedTransformer(nn.Module):
         src_emb = self.pos_encoding(src_emb)
         
         # Encoder
-        encoder_output = self.encoder(src_emb, src_mask.squeeze(1).squeeze(1))
+        encoder_output = self.encoder(src_emb, src_mask.squeeze(1))
         
         if tgt is None:
             # Inference mode - return encoder output
@@ -128,8 +128,8 @@ class OptimizedTransformer(nn.Module):
         
         decoder_output = self.decoder(
             tgt_emb, encoder_output, 
-            src_mask.squeeze(1).squeeze(1),
-            tgt_mask.squeeze(1).squeeze(1)
+            src_mask.squeeze(1),
+            tgt_mask.squeeze(1)
         )
         
         # Output projection
@@ -142,7 +142,7 @@ class OptimizedTransformer(nn.Module):
         src_mask = self.create_padding_mask(src, self.pad_token_id)
         src_emb = self.src_embedding(src)
         src_emb = self.pos_encoding(src_emb)
-        return self.encoder(src_emb, src_mask.squeeze(1).squeeze(1))
+        return self.encoder(src_emb, src_mask.squeeze(1))
     
     def decode(
         self, 
